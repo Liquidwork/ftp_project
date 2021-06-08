@@ -5,6 +5,7 @@
 #include<sys/types.h>
 #include<sys/socket.h>
 #include<netinet/in.h>
+#include<dirent.h>
 #include<unistd.h>
 
 #define MAXLINE 4096
@@ -46,9 +47,33 @@ int main(int argc, char** argv){
         }
         n = recv(ftp_pi, buff, MAXLINE, 0);
         buff[n] = '\0';
-        printf("[%s:%d]: %s\n", inet_ntoa(src_addr.sin_addr), ntohs(src_addr.sin_port), buff);
+        printf("[%s:%d]: %s\n", inet_ntoa(src_addr.sin_addr), ntohs(src_addr.sin_port), buff); // printing input
+
+        // Try command list
+        if(strcmp(buff, "ls") == 0){
+            list();
+        }
+        
+        // Run the command
         close(ftp_pi);
     }
     close(listen_socket);
+    return 0;
+}
+
+int list(){
+    printf("execute LIST\n");
+
+    DIR *dir = NULL;
+    dir = opendir("."); // Now opening the source dir
+    struct dirent *ent = NULL; // file
+    if (!dir) {
+        return -1;
+    }
+    while ((ent = readdir(dir))) {
+        printf("%s\n", ent->d_name);
+        //send(server->data_sock, buf, strlen(buf), 0);
+    }
+    closedir(dir);
     return 0;
 }
