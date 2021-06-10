@@ -23,6 +23,7 @@ int do_PASS(char* password);
 int do_PASV();
 int do_PORT(char* ip_and_port);
 void do_QUIT();
+void do_SYST();
 int do_USER(char* name);
 void str_dot2comma(char* ip);
 int validation();
@@ -94,6 +95,9 @@ int main(int argc, char** argv){
                 } else if (strcmp(command, "QUIT") == 0) {
                     do_QUIT();
                     break;
+                }
+                else if (strcmp(command, "SYST") == 0) {
+                    do_SYST();
                 } else {
                     strcpy(res, "503 Unsupported command.\r\n");
                     if (send(ftp_pi, res, strlen(res) + 1, 0) != strlen(res) + 1) {
@@ -293,6 +297,15 @@ void do_QUIT(){
         printf("sending response to pi error: %s(errno: %d)",strerror(errno),errno);
     }
     printf("FTP client quit");
+}
+
+//showing the OS
+void do_SYST(){
+    char res[128];
+    sprintf(res, "Remote system is Linux.\r\n");
+    if(send(ftp_pi, res, strlen(res) + 1, 0) != strlen(res) + 1) {
+        printf("sending response to pi error: %s(errno: %d)", strerror(errno), errno);
+    }
 }
 
 //used to check username before any activities
