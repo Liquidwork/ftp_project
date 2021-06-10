@@ -9,11 +9,11 @@
 #include<unistd.h>
 #include <arpa/inet.h>
 
-#define MAXLINE 4096
+#define MAXLINE 1024
 
 static char NAME[32] = "student";
 static char PASSWORD[32] = "111111";
-static int flag = 0;
+static int flag = 0; // 0 for not log in yet, 1 for user input, 2 for logged in
 
 int listen_socket, ftp_pi;
 int passive_listen_socket, data_socket;
@@ -26,6 +26,8 @@ void do_QUIT();
 int do_USER(char* name);
 void str_dot2comma(char* ip);
 int validation();
+int respond(int socket, int statue, char* msg);
+void trim(char* msg);
 
 
 int main(int argc, char** argv){
@@ -71,18 +73,21 @@ int main(int argc, char** argv){
 
     while(1){
         if((ftp_pi = accept(listen_socket, (struct sockaddr*) &src_addr, &len)) == -1){
-            printf("accept socket error: %s(errno: %d)",strerror(errno),errno);
+            printf("accept socket error: %s(errno: %d)\n",strerror(errno),errno);
             close(ftp_pi);
             continue;
         }
-        strcpy(res, "200 C language FTP by Dongyu and Zerui\r\n");
-        if(send(ftp_pi, res, strlen(res) + 1, 0) != strlen(res) + 1){
-            printf("sending response to pi error: %s(errno: %d)",strerror(errno),errno);
+        if(respond(ftp_pi, 200, "C language FTP by Dongyu and Zerui\r\n")){
+            printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
             return -1;
         }
         while(1){
             n = recv(ftp_pi, buff, MAXLINE, 0);
+            if(n < 3){
+                continue;
+            }
             buff[n] = '\0';
+            trim(buff);
 
             printf("[%s:%d]: %s\n", inet_ntoa(src_addr.sin_addr), ntohs(src_addr.sin_port), buff); // printing input
 
@@ -103,11 +108,11 @@ int main(int argc, char** argv){
                     do_QUIT();
                     break;
                 } else {
-                    strcpy(res, "503 Unsupported command.\r\n");
-                    if (send(ftp_pi, res, strlen(res) + 1, 0) != strlen(res) + 1) {
-                        printf("sending response to pi error: %s(errno: %d)", strerror(errno), errno);
+                    if (respond(ftp_pi, 503, "Unsupported command.\r\n")) {
+                        printf("sending respond to pi error: %s(errno: %d)\n", strerror(errno), errno);
                         return -1;
                     }
+                    printf("Unsupported command: %s\n", command);
                 }
             } else {
                 // Unauthorized
@@ -128,11 +133,9 @@ void parse_command(char* input, char* command, char* param){
     char flag = 0; // 0 for command part, 1 for param part.
     char *in_ptr = input;
     int bit = 0;
+    *command = '\0'; // Reinitialize to avoid bug
+    *param = '\0';
     while(*in_ptr != '\0'){
-        if(*in_ptr == '\n' || *in_ptr == '\r'){
-            in_ptr++;
-            continue;
-        }
         if(flag == 0){
             command[bit++] = *in_ptr;
             in_ptr++;
@@ -147,31 +150,24 @@ void parse_command(char* input, char* command, char* param){
             in_ptr++;
         }
     }
-    if(bit == 0){
-        *command = '\0';
-    }
     param[bit] = '\0';
-
-    printf("Command: <%s>, Param: <%s>", command, param);
+    // printf("Command: <%s>, Param: <%s>", command, param);
 }
 
 
 //Response to PASS, used to check password after username check
 int do_PASS(char* password){
-    char res[128];
     if(!strcmp(PASSWORD, password)){
-        sprintf(res, "230 User logged in, proceed.\r\n");
-        if(send(ftp_pi, res, strlen(res) + 1, 0) != strlen(res) + 1){
-            printf("sending response to pi error: %s(errno: %d)",strerror(errno),errno);
+        if(respond(ftp_pi, 230, "User logged in, proceed.\r\n")){
+            printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
         }
-        printf("Login success");
+        printf("Login success\n");
         flag =2;
     } else{
-        sprintf(res, "530  Not logged in.\r\n");
-        if(send(ftp_pi, res, strlen(res) + 1, 0) != strlen(res) + 1){
-            printf("sending response to pi error: %s(errno: %d)",strerror(errno),errno);
+        if(respond(ftp_pi, 530, "Not logged in.\r\n")){
+            printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
         }
-        printf("Password invalid");
+        printf("Password invalid\n");
     }
     return flag;
 }
@@ -181,7 +177,6 @@ int do_PORT(char* ip_and_port){
     struct sockaddr_in servaddr, clientaddr;
     unsigned char ip_seg[4], port_seg[2];
     char ip[32];
-    char res[128];
     unsigned int port;
 
     printf("Active mode on, trying to establish connection\n");
@@ -195,7 +190,7 @@ int do_PORT(char* ip_and_port){
     inet_aton(ip, &clientaddr.sin_addr);
     clientaddr.sin_port = htons(port);
 
-    printf("Trying to connect to %s:%u", ip, port);
+    printf("Trying to connect to %s:%u\n", ip, port);
     if((data_socket = socket(AF_INET, SOCK_STREAM, 0)) == -1 ){
         printf("create socket error: %s(errno: %d)\n",strerror(errno),errno);
         return -1;
@@ -214,16 +209,14 @@ int do_PORT(char* ip_and_port){
         printf("bind socket error: %s(errno: %d)\n",strerror(errno),errno);
 
         // Providing a error code to show the error
-        sprintf(res, "520 Data connection failed\r\n");
-        if(send(ftp_pi, res, strlen(res) + 1, 0) != strlen(res) + 1){
-            printf("sending response to pi error: %s(errno: %d)",strerror(errno),errno);
+        if(respond(ftp_pi, 520, "Data connection failed\r\n")){
+            printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
             return -1;
         }
         return -1;
     }
-    sprintf(res, "200 PORT command successful. Consider using PASV.\r\n");
-    if(send(ftp_pi, res, strlen(res) + 1, 0) != strlen(res) + 1){
-        printf("sending response to pi error: %s(errno: %d)",strerror(errno),errno);
+    if(respond(ftp_pi, 200, "PORT command successful. Consider using PASV.\r\n")){
+        printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
         return -1;
     }
     printf("Data connection established. Client IP: %s Port: %d\n", ip, port);
@@ -235,7 +228,7 @@ int do_PASV(){
     struct sockaddr_in servaddr;
     int len = sizeof(servaddr);
 
-    printf("Passive mode on");
+    printf("Passive mode on\n");
 
     if((passive_listen_socket = socket(AF_INET, SOCK_STREAM, 0)) == -1 ){
         printf("create socket error: %s(errno: %d)\n",strerror(errno),errno);
@@ -253,8 +246,9 @@ int do_PASV(){
 
     getsockname(passive_listen_socket, (struct sockaddr*)&servaddr, &len);
     unsigned char first_seg, second_seg;
-    first_seg = servaddr.sin_port / 256;
-    second_seg = servaddr.sin_port % 256;
+    int port = ntohs(servaddr.sin_port);
+    first_seg = port / 256;
+    second_seg = port % 256;
 
 //    char *ip = inet_ntoa(servaddr.sin_addr);
 //    str_dot2comma(ip);
@@ -262,14 +256,13 @@ int do_PASV(){
     // Response in Pi
     char res[128];
 
-    sprintf(res, "227 Entering Passive Mode (127,0,0,1,%d,%d)\r\n", first_seg, second_seg);
-//    sprintf(res, "227 Entering Passive Mode (%s,%d,%d)\r\n", ip, first_seg, second_seg);
-    if(send(ftp_pi, res, strlen(res) + 1, 0) != strlen(res) + 1){
-        printf("sending response to pi error: %s(errno: %d)",strerror(errno),errno);
+    sprintf(res, "Entering Passive Mode (127,0,0,1,%d,%d)\r\n", first_seg, second_seg);
+    if(respond(ftp_pi, 227, res)){
+        printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
         return -1;
     }
 
-    printf("Entering passive mode, listening 127.0.0.1, %d", servaddr.sin_port);
+    printf("Entering passive mode, listening 127.0.0.1, %d\n", servaddr.sin_port);
 
     if(listen(passive_listen_socket, 1) == -1){
         printf("listen socket error: %s(errno: %d)\n",strerror(errno),errno);
@@ -292,32 +285,29 @@ int do_PASV(){
     return 0;
 }
 
-// Quiting response and server console output
+// Quiting respond and server console output
 void do_QUIT(){
     char res[128];
-    sprintf(res, "221 Goodbye.\r\n");
-    if(send(ftp_pi, res, strlen(res) + 1, 0) != strlen(res) + 1){
-        printf("sending response to pi error: %s(errno: %d)",strerror(errno),errno);
+    if(respond(ftp_pi, 221, "Goodbye.\r\n")){
+        printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
     }
-    printf("FTP client quit");
+    flag = 0;
+    printf("FTP client quit\n");
 }
 
 //used to check username before any activities
 int do_USER(char* name){
-    char res[128];
     if(!strcmp(NAME,name)){
-        sprintf(res, "331 User name okay, need password.\r\n");
-        if(send(ftp_pi, res, strlen(res) + 1, 0) != strlen(res) + 1){
-            printf("sending response to pi error: %s(errno: %d)",strerror(errno),errno);
+        if(respond(ftp_pi, 331, "User name okay, need password.\r\n")){
+            printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
         }
-        printf("Username check");
+        printf("Username check\n");
         flag =1;
-    } else{
-        sprintf(res, "332 Need valid account for login.\r\n");
-        if(send(ftp_pi, res, strlen(res) + 1, 0) != strlen(res) + 1){
-            printf("sending response to pi error: %s(errno: %d)",strerror(errno),errno);
+    }else{
+        if(respond(ftp_pi, 332, "Need valid account for login.\r\n")){
+            printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
         }
-        printf("Username invalid");
+        printf("Username invalid\n");
     }
     return flag;
 }
@@ -336,31 +326,33 @@ void str_dot2comma(char* ip){
 //Used to check the status of user account
 int validation(){
     if(flag==0){
-        char res[128];
-        sprintf(res, "332  Need account for login.\r\n");
-        if(send(ftp_pi, res, strlen(res) + 1, 0) != strlen(res) + 1){
-            printf("sending response to pi error: %s(errno: %d)",strerror(errno),errno);
+        if(respond(ftp_pi, 332, "Need valid account for login.\r\n")){
+            printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
         }
         printf("Invalid username");
     } else if(flag ==1){
-        char res[128];
-        sprintf(res, "332  Need account for login.\r\n");
-        if(send(ftp_pi, res, strlen(res) + 1, 0) != strlen(res) + 1){
-            printf("sending response to pi error: %s(errno: %d)",strerror(errno),errno);
+        if(respond(ftp_pi, 332, "Need valid account for login.\r\n")){
+            printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
         }
-        printf("Invalid username");
+        printf("Invalid username\n");
     }
     return flag;
 }
 
-//A function that might reduce the code duplicate for sending messgae to client
-//Reserved, I don't know if it can reduce duplicated code
-//Beacuse I dont understanding the address things in C
-void response(char* msg){
+// Send respond to specific socket, returning 0 indicate no error happens
+int respond(int socket, int statue, char* msg){
     char res[128];
-    sprintf(res, "%s", msg);
-    if(send(ftp_pi, res, strlen(res) + 1, 0) != strlen(res) + 1){
-        printf("sending response to pi error: %s(errno: %d)",strerror(errno),errno);
+    sprintf(res, "%d %s", statue, msg);
+    return send(socket, res, strlen(res), 0) - strlen(res);
+}
+
+// Trim the returns in a line, by replacing the first one with '\0'
+void trim(char* msg){
+    while (*msg != '\0'){
+        if (*msg == '\r' || *msg == '\n'){
+            *msg = '\0';
+        }
+        msg++;
     }
 }
 
