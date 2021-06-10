@@ -69,8 +69,6 @@ int main(int argc, char** argv){
     struct sockaddr_in src_addr = {0};
     int len = sizeof(src_addr);
 
-    char res[128];
-
     while(1){
         if((ftp_pi = accept(listen_socket, (struct sockaddr*) &src_addr, &len)) == -1){
             printf("accept socket error: %s(errno: %d)\n",strerror(errno),errno);
@@ -287,7 +285,6 @@ int do_PASV(){
 
 // Quiting respond and server console output
 void do_QUIT(){
-    char res[128];
     if(respond(ftp_pi, 221, "Goodbye.\r\n")){
         printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
     }
