@@ -11,14 +11,21 @@
 
 #define MAXLINE 4096
 
+static char NAME[32] = "student";
+static char PASSWORD[32] = "111111";
+static int flag = 0;
+
 int listen_socket, ftp_pi;
 int passive_listen_socket, data_socket;
 
 void parse_command(char* input, char* command, char* param);
+int do_PASS(char* password);
 int do_PASV();
 int do_PORT(char* ip_and_port);
 void do_QUIT();
+int do_USER(char* name);
 void str_dot2comma(char* ip);
+int validation();
 
 
 int main(int argc, char** argv){
@@ -82,20 +89,29 @@ int main(int argc, char** argv){
             // Parse the string to command and param.
             parse_command(buff, command, param);
 
-            // Try command list.
-            if(strcmp(command, "PASV") == 0){
-                do_PASV();
-            }else if(strcmp(command, "PORT") == 0){
-                do_PORT(param);
-            }else if(strcmp(command, "QUIT") == 0){
-                do_QUIT();
-                break;
-            }else{
-                strcpy(res, "503 Unsupported command.\r\n");
-                if(send(ftp_pi, res, strlen(res) + 1, 0) != strlen(res) + 1){
-                    printf("sending response to pi error: %s(errno: %d)",strerror(errno),errno);
-                    return -1;
+            if(strcmp(command, "USER")==0){
+                do_USER(param);
+            } else if(strcmp(command, "PASS")==0){
+                do_PASS(param);
+            } else if (flag == 2) { // If login successfully
+                // Try command list.
+                if (strcmp(command, "PASV") == 0) {
+                    do_PASV();
+                } else if (strcmp(command, "PORT") == 0) {
+                    do_PORT(param);
+                } else if (strcmp(command, "QUIT") == 0) {
+                    do_QUIT();
+                    break;
+                } else {
+                    strcpy(res, "503 Unsupported command.\r\n");
+                    if (send(ftp_pi, res, strlen(res) + 1, 0) != strlen(res) + 1) {
+                        printf("sending response to pi error: %s(errno: %d)", strerror(errno), errno);
+                        return -1;
+                    }
                 }
+            } else {
+                // Unauthorized
+                validation();
             }
         }
 
@@ -112,11 +128,16 @@ void parse_command(char* input, char* command, char* param){
     char flag = 0; // 0 for command part, 1 for param part.
     char *in_ptr = input;
     int bit = 0;
-    while (*in_ptr != '\0'){
+    while(*in_ptr != '\0'){
+        if(*in_ptr == '\n' || *in_ptr == '\r'){
+            in_ptr++;
+            continue;
+        }
         if(flag == 0){
             command[bit++] = *in_ptr;
             in_ptr++;
             if(*in_ptr == ' '){ // If next bit is space
+                command[bit] = '\0';
                 bit = 0;
                 flag = 1; // Set to next mode: parsing param
                 in_ptr++;
@@ -126,10 +147,33 @@ void parse_command(char* input, char* command, char* param){
             in_ptr++;
         }
     }
-    if(flag == '\0'){ // No param part
-        *param = '\0';
+    if(bit == 0){
+        *command = '\0';
     }
-    // printf("Command: <%s>, Param: <%s>", command, param);
+    param[bit] = '\0';
+
+    printf("Command: <%s>, Param: <%s>", command, param);
+}
+
+
+//Response to PASS, used to check password after username check
+int do_PASS(char* password){
+    char res[128];
+    if(!strcmp(PASSWORD, password)){
+        sprintf(res, "230 User logged in, proceed.\r\n");
+        if(send(ftp_pi, res, strlen(res) + 1, 0) != strlen(res) + 1){
+            printf("sending response to pi error: %s(errno: %d)",strerror(errno),errno);
+        }
+        printf("Login success");
+        flag =2;
+    } else{
+        sprintf(res, "530  Not logged in.\r\n");
+        if(send(ftp_pi, res, strlen(res) + 1, 0) != strlen(res) + 1){
+            printf("sending response to pi error: %s(errno: %d)",strerror(errno),errno);
+        }
+        printf("Password invalid");
+    }
+    return flag;
 }
 
 // Start a new do_PORT data socket
@@ -258,6 +302,26 @@ void do_QUIT(){
     printf("FTP client quit");
 }
 
+//used to check username before any activities
+int do_USER(char* name){
+    char res[128];
+    if(!strcmp(NAME,name)){
+        sprintf(res, "331 User name okay, need password.\r\n");
+        if(send(ftp_pi, res, strlen(res) + 1, 0) != strlen(res) + 1){
+            printf("sending response to pi error: %s(errno: %d)",strerror(errno),errno);
+        }
+        printf("Username check");
+        flag =1;
+    } else{
+        sprintf(res, "332 Need valid account for login.\r\n");
+        if(send(ftp_pi, res, strlen(res) + 1, 0) != strlen(res) + 1){
+            printf("sending response to pi error: %s(errno: %d)",strerror(errno),errno);
+        }
+        printf("Username invalid");
+    }
+    return flag;
+}
+
 // Replace dot in str to comma
 void str_dot2comma(char* ip){
     char *ptr = ip;
@@ -268,3 +332,35 @@ void str_dot2comma(char* ip){
         ptr++;
     }
 }
+
+//Used to check the status of user account
+int validation(){
+    if(flag==0){
+        char res[128];
+        sprintf(res, "332  Need account for login.\r\n");
+        if(send(ftp_pi, res, strlen(res) + 1, 0) != strlen(res) + 1){
+            printf("sending response to pi error: %s(errno: %d)",strerror(errno),errno);
+        }
+        printf("Invalid username");
+    } else if(flag ==1){
+        char res[128];
+        sprintf(res, "332  Need account for login.\r\n");
+        if(send(ftp_pi, res, strlen(res) + 1, 0) != strlen(res) + 1){
+            printf("sending response to pi error: %s(errno: %d)",strerror(errno),errno);
+        }
+        printf("Invalid username");
+    }
+    return flag;
+}
+
+//A function that might reduce the code duplicate for sending messgae to client
+//Reserved, I don't know if it can reduce duplicated code
+//Beacuse I dont understanding the address things in C
+void response(char* msg){
+    char res[128];
+    sprintf(res, "%s", msg);
+    if(send(ftp_pi, res, strlen(res) + 1, 0) != strlen(res) + 1){
+        printf("sending response to pi error: %s(errno: %d)",strerror(errno),errno);
+    }
+}
+
