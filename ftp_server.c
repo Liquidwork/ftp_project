@@ -17,6 +17,7 @@ int passive_listen_socket, data_socket;
 void parse_command(char* input, char* command, char* param);
 int do_PASV();
 int do_PORT(char* ip_and_port);
+void do_QUIT();
 void str_dot2comma(char* ip);
 
 
@@ -56,26 +57,32 @@ int main(int argc, char** argv){
             close(ftp_pi);
             continue;
         }
-        n = recv(ftp_pi, buff, MAXLINE, 0);
-        buff[n] = '\0';
+        while(1){
+            n = recv(ftp_pi, buff, MAXLINE, 0);
+            buff[n] = '\0';
 
-        printf("[%s:%d]: %s\n", inet_ntoa(src_addr.sin_addr), ntohs(src_addr.sin_port), buff); // printing input
+            printf("[%s:%d]: %s\n", inet_ntoa(src_addr.sin_addr), ntohs(src_addr.sin_port), buff); // printing input
 
-        // Parse the string to command and param.
-        parse_command(buff, command, param);
+            // Parse the string to command and param.
+            parse_command(buff, command, param);
 
-        // Try command list.
-        if(strcmp(command, "PASV") == 0){
-            do_PASV();
-        }else if(strcmp(command, "PORT") == 0){
-            do_PORT(param);
-        }else{
-            char res[128] = "???";
-            if(send(ftp_pi, res, strlen(res) + 1, 0) != strlen(res) + 1){
-                printf("sending response to pi error: %s(errno: %d)",strerror(errno),errno);
-                return -1;
+            // Try command list.
+            if(strcmp(command, "PASV") == 0){
+                do_PASV();
+            }else if(strcmp(command, "PORT") == 0){
+                do_PORT(param);
+            }else if(strcmp(command, "QUIT") == 0){
+                do_QUIT();
+                break;
+            }else{
+                char res[128] = "???";
+                if(send(ftp_pi, res, strlen(res) + 1, 0) != strlen(res) + 1){
+                    printf("sending response to pi error: %s(errno: %d)",strerror(errno),errno);
+                    return -1;
+                }
             }
         }
+
 
         // Run the command
         close(ftp_pi);
@@ -224,6 +231,15 @@ int do_PASV(){
     close(passive_listen_socket); // Close the passive listening
 
     return 0;
+}
+
+void do_QUIT(){
+    char res[128];
+    sprintf(res, "221 Goodbye.\r\n");
+    if(send(ftp_pi, res, strlen(res) + 1, 0) != strlen(res) + 1){
+        printf("sending response to pi error: %s(errno: %d)",strerror(errno),errno);
+    }
+    printf("FTP client quit");
 }
 
 // Replace dot in str to comma
