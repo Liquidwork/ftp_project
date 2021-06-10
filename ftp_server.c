@@ -72,7 +72,7 @@ int main(int argc, char** argv){
         }else{
             char res[128] = "???";
             if(send(ftp_pi, res, strlen(res) + 1, 0) != strlen(res) + 1){
-                printf("sending reponse to pi error: %s(errno: %d)",strerror(errno),errno);
+                printf("sending response to pi error: %s(errno: %d)",strerror(errno),errno);
                 return -1;
             }
         }
@@ -114,7 +114,8 @@ void parse_command(char* input, char* command, char* param){
 int do_PORT(char* ip_and_port){
     struct sockaddr_in servaddr, clientaddr;
     unsigned char ip_seg[4], port_seg[2];
-    char *ip;
+    char ip[32];
+    char res[128];
     unsigned int port;
 
     printf("Active mode on, trying to establish connection\n");
@@ -128,6 +129,7 @@ int do_PORT(char* ip_and_port){
     inet_aton(ip, &clientaddr.sin_addr);
     clientaddr.sin_port = htons(port);
 
+    printf("Trying to connect to %s:%u", ip, port);
     if((data_socket = socket(AF_INET, SOCK_STREAM, 0)) == -1 ){
         printf("create socket error: %s(errno: %d)\n",strerror(errno),errno);
         return -1;
@@ -144,10 +146,22 @@ int do_PORT(char* ip_and_port){
 
     if(connect(data_socket, (struct sockaddr*)&clientaddr, sizeof(clientaddr)) == -1){
         printf("bind socket error: %s(errno: %d)\n",strerror(errno),errno);
+
+        // Providing a error code to show the error
+        sprintf(res, "520 Data connection failed\r\n");
+        if(send(ftp_pi, res, strlen(res) + 1, 0) != strlen(res) + 1){
+            printf("sending response to pi error: %s(errno: %d)",strerror(errno),errno);
+            return -1;
+        }
         return -1;
     }
-
+    sprintf(res, "200 PORT command successful. Consider using PASV.\r\n");
+    if(send(ftp_pi, res, strlen(res) + 1, 0) != strlen(res) + 1){
+        printf("sending response to pi error: %s(errno: %d)",strerror(errno),errno);
+        return -1;
+    }
     printf("Data connection established. Client IP: %s Port: %d\n", ip, port);
+    return 0;
 }
 
 // Start a new do_PASV data socket
