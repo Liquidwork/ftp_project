@@ -302,7 +302,7 @@ void do_QUIT(){
 //showing the OS
 void do_SYST(){
     char res[128];
-    sprintf(res, "Remote system is Linux.\r\n");
+    sprintf(res, "215 Remote System is Linux.\r\n");
     if(send(ftp_pi, res, strlen(res) + 1, 0) != strlen(res) + 1) {
         printf("sending response to pi error: %s(errno: %d)", strerror(errno), errno);
     }
