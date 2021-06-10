@@ -260,7 +260,7 @@ int do_PASV(){
         return -1;
     }
 
-    printf("Entering passive mode, listening 127.0.0.1, %d\n", servaddr.sin_port);
+    //printf("Entering passive mode, listening 127.0.0.1:%d\n", port);
 
     if(listen(passive_listen_socket, 1) == -1){
         printf("listen socket error: %s(errno: %d)\n",strerror(errno),errno);
