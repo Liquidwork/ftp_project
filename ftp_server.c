@@ -14,7 +14,8 @@
 int listen_socket, ftp_pi;
 int passive_listen_socket, data_socket;
 
-int passive();
+int do_PASV();
+void str_dot2comma(char*);
 
 int main(int argc, char** argv){
     struct sockaddr_in servaddr;
@@ -58,7 +59,7 @@ int main(int argc, char** argv){
 
         // Try command list
         if(strcmp(buff, "PASV") == 0){
-            passive();
+            do_PASV();
         }else{
             char res[128] = "???";
             if(send(ftp_pi, res, strlen(res) + 1, 0) != strlen(res) + 1){
@@ -77,9 +78,15 @@ int main(int argc, char** argv){
     return 0;
 }
 
-// Start a new passive data socket
-int passive(){
+// Start a new do_PORT data socket
+int do_PORT(char* ip_and_port){
+
+}
+
+// Start a new do_PASV data socket
+int do_PASV(){
     struct sockaddr_in servaddr;
+    int len = sizeof(servaddr);
 
     printf("Passive mode on");
 
@@ -97,12 +104,21 @@ int passive(){
         return -1;
     }
 
+    getsockname(passive_listen_socket, (struct sockaddr*)&servaddr, &len);
+    unsigned char first_seg, second_seg;
+    first_seg = servaddr.sin_port / 256;
+    second_seg = servaddr.sin_port % 256;
+
+//    char *ip = inet_ntoa(servaddr.sin_addr);
+//    str_dot2comma(ip);
+
     // Response in Pi
     char res[128];
-    //sprintf(res, "227 Entering Passive Mode (%s,%d)\r\n", inet_ntoa(servaddr.sin_addr), ntohs(servaddr.sin_port));
-    sprintf(res, "227 Entering Passive Mode (127,0,0,1,25,233)\r\n");
+
+    sprintf(res, "227 Entering Passive Mode (127,0,0,1,%d,%d)\r\n", first_seg, second_seg);
+//    sprintf(res, "227 Entering Passive Mode (%s,%d,%d)\r\n", ip, first_seg, second_seg);
     if(send(ftp_pi, res, strlen(res) + 1, 0) != strlen(res) + 1){
-        printf("sending reponse to pi error: %s(errno: %d)",strerror(errno),errno);
+        printf("sending response to pi error: %s(errno: %d)",strerror(errno),errno);
         return -1;
     }
 
@@ -112,7 +128,7 @@ int passive(){
     }
 
     struct sockaddr_in src_addr = {0};
-    int len = sizeof(src_addr);
+    len = sizeof(src_addr);
 
     // Try to accept a new socket from data_connection
     if((data_socket = accept(passive_listen_socket, (struct sockaddr*) &src_addr, &len)) == -1){
@@ -120,4 +136,15 @@ int passive(){
         return -1;
     } 
 
+}
+
+// Replace dot in str to comma
+void str_dot2comma(char* ip){
+    char *ptr = ip;
+    while (*ptr != '\0'){
+        if(*ptr == '.'){
+            *ptr = ',';
+        }
+        ptr++;
+    }
 }
