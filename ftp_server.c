@@ -35,7 +35,7 @@ int main(int argc, char** argv){
     memset(&servaddr, 0, sizeof(servaddr));
     servaddr.sin_family = AF_INET;
     servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
-    servaddr.sin_port = htons(2500);
+    servaddr.sin_port = htons(21);
 
     if(bind(listen_socket, (struct sockaddr*)&servaddr, sizeof(servaddr)) == -1){
         printf("bind socket error: %s(errno: %d)\n",strerror(errno),errno);
@@ -47,15 +47,23 @@ int main(int argc, char** argv){
         return -1;
     }
 
-    printf("Server listening on port 2500\n");
+    printf("Server listening on port 21\n");
 
     struct sockaddr_in src_addr = {0};
     int len = sizeof(src_addr);
+
+    char res[128];
+
     while(1){
         if((ftp_pi = accept(listen_socket, (struct sockaddr*) &src_addr, &len)) == -1){
             printf("accept socket error: %s(errno: %d)",strerror(errno),errno);
             close(ftp_pi);
             continue;
+        }
+        strcpy(res, "200 C language FTP by Dongyu and Zerui\r\n");
+        if(send(ftp_pi, res, strlen(res) + 1, 0) != strlen(res) + 1){
+            printf("sending response to pi error: %s(errno: %d)",strerror(errno),errno);
+            return -1;
         }
         while(1){
             n = recv(ftp_pi, buff, MAXLINE, 0);
@@ -75,7 +83,7 @@ int main(int argc, char** argv){
                 do_QUIT();
                 break;
             }else{
-                char res[128] = "???";
+                strcpy(res, "503 Unsupported command.\r\n");
                 if(send(ftp_pi, res, strlen(res) + 1, 0) != strlen(res) + 1){
                     printf("sending response to pi error: %s(errno: %d)",strerror(errno),errno);
                     return -1;
@@ -233,6 +241,7 @@ int do_PASV(){
     return 0;
 }
 
+// Quiting response and server console output
 void do_QUIT(){
     char res[128];
     sprintf(res, "221 Goodbye.\r\n");
