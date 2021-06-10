@@ -27,6 +27,10 @@ int main(int argc, char** argv){
     char command[16], param[128];
     int n;
 
+    /*
+     * TCP listen server part
+     */
+
     if((listen_socket = socket(AF_INET, SOCK_STREAM, 0)) == -1 ){
         printf("create socket error: %s(errno: %d)\n",strerror(errno),errno);
         return -1;
@@ -48,6 +52,10 @@ int main(int argc, char** argv){
     }
 
     printf("Server listening on port 21\n");
+
+    /*
+     * TCP accept and command processing part
+     */
 
     struct sockaddr_in src_addr = {0};
     int len = sizeof(src_addr);
@@ -90,7 +98,6 @@ int main(int argc, char** argv){
                 }
             }
         }
-
 
         // Run the command
         close(ftp_pi);
