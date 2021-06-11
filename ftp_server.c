@@ -10,7 +10,8 @@
 #include<arpa/inet.h>
 #include<sys/stat.h>
 #include<time.h>
-#include <sys/procfs.h>
+#include<sys/procfs.h>
+#include<fcntl.h>
 
 #define MAXLINE 1024
 
@@ -19,6 +20,7 @@ static char PASSWORD[32] = "111111";
 static int flag = 0; // 0 for not log in yet, 1 for user input, 2 for logged in
 
 static char active_user[32] = "UNAUTHORIZED";
+static char active_mode[32] = "ASCII";
 
 static int listen_socket, ftp_pi;
 static int passive_listen_socket, data_socket;
@@ -29,7 +31,9 @@ int do_PASS(char* password);
 int do_PASV();
 int do_PORT(char* ip_and_port);
 void do_QUIT();
+void do_RETR(char* filename);
 void do_SYST();
+void do_TYPE(char* type);
 int do_USER(char* name);
 void str_dot2comma(char* ip);
 int validation();
@@ -114,19 +118,23 @@ int main(int argc, char** argv){
                 do_USER(param);
             } else if(strcmp(command, "PASS")==0){
                 do_PASS(param);
+            } else if (strcmp(command, "QUIT") == 0) {
+                do_QUIT();
+                break;
             } else if (strcmp(command, "SYST") == 0) {
                 do_SYST();
             } else if (flag == 2) { // If login successfully
                 // Try command list.
-                if (strcmp(command, "PASV") == 0) {
-                    do_PASV();
-                } else if (strcmp(command, "LIST") == 0) {
+                if (strcmp(command, "LIST") == 0) {
                     do_LIST();
+                } else if (strcmp(command, "PASV") == 0) {
+                    do_PASV();
                 } else if (strcmp(command, "PORT") == 0) {
                     do_PORT(param);
-                } else if (strcmp(command, "QUIT") == 0) {
-                    do_QUIT();
-                    break;
+                } else if (strcmp(command, "TYPE") == 0) {
+                    do_TYPE(param);
+                } else if (strcmp(command, "RETR") == 0) {
+                    do_RETR(param);
                 } else {
                     if (respond(ftp_pi, 503, "Unsupported command.")) {
                         printf("sending respond to pi error: %s(errno: %d)\n", strerror(errno), errno);
@@ -148,6 +156,7 @@ int main(int argc, char** argv){
         // Reset login statue
         flag = 0;
         strcpy(active_user, "UNAUTHORIZED");
+        strcpy(active_mode, "ASCII");
     }
     close(listen_socket);
     return 0;
@@ -182,9 +191,11 @@ void parse_command(char* input, char* command, char* param){
 // Send list of active path through data connection
 // The method now is not completed, since file system not finished.
 void do_LIST(){
+    char res[128];
     if (data_socket != -1){ // If data connection is active.
-        respond(ftp_pi, 150, "Opening ASCII mode data connection for /bin/ls.");
-        printf("Executing LIST");
+        sprintf(res, "Opening %s mode data connection for /bin/ls.", active_mode);
+        respond(ftp_pi, 150, res);
+        printf("Executing LIST.\n");
         DIR *dir = opendir(".");
 
         struct dirent *dt;
@@ -208,17 +219,17 @@ void do_LIST(){
             off += sprintf(buf + off, " %3d %-8d %-8d ", sbuf.st_nlink, sbuf.st_uid, sbuf.st_gid);
             off += sprintf(buf + off, "%8lu ", (unsigned long)sbuf.st_size);
 
-            char *datebuf = statbuf_get_date(&sbuf);
+            const char *datebuf = statbuf_get_date(&sbuf);
             off += sprintf(buf + off, "%s ", datebuf);
             if (S_ISLNK(sbuf.st_mode))
             {
                 char tmp[1024] = {0};
                 readlink(dt->d_name, tmp, sizeof(tmp));
-                off += sprintf(buf + off, "%s -> %s\r\n", dt->d_name, tmp);
+                sprintf(buf + off, "%s -> %s\r\n", dt->d_name, tmp);
             }
             else
             {
-                off += sprintf(buf + off, "%s\r\n", dt->d_name);
+                sprintf(buf + off, "%s\r\n", dt->d_name);
             }
 
 
@@ -226,7 +237,7 @@ void do_LIST(){
             send(data_socket, buf, strlen(buf), 0);
         }
         respond(ftp_pi, 226, "Transfer complete.");
-        printf("LIST transferred.");
+        printf("LIST transferred.\n");
         closedir(dir);
         // Close the socket.
         close(data_socket);
@@ -380,14 +391,81 @@ void do_QUIT(){
     printf("FTP client quit\n");
 }
 
-//showing the OS
+void do_RETR(char* filename){
+    int file;
+    char buff[MAXLINE], res[64];
+    if (data_socket == -1){ // If connection is off
+        respond(ftp_pi, 425, "Transfer aborted.");
+        printf("REST execution failed because of a unconnected transfer.");
+        return;
+    }
+    printf("Executing RETR. Trying to transfer file: %s in %s mode.\n", filename, active_mode);
+    if((file = open(filename, O_RDONLY)) == -1)
+    {
+        respond(ftp_pi, 550, "File inaccessible.");
+        printf("Transmission failed because of file is inaccessible.\n");
+        close(file);
+        close(data_socket);
+        data_socket = -1;
+        return;
+    }
+    // Getting the size of the file.
+    int size = lseek(file, 0, SEEK_END); // Set to end and get size
+    sprintf(res, "Opening %s mode data connection for %s (%i byte).", active_mode, filename, size);
+    respond(ftp_pi, 150, res);
+    printf("Trying to transmit file: %s (%i byte)\n", filename, size);
+    lseek(file, 0, SEEK_SET); // Set to start again for transmission
+
+
+    int ret;
+    while((ret = read(file, buff, MAXLINE)) > 0)
+    {
+        if(send(data_socket, buff, ret, 0) == -1){
+            ret = -1;
+            break;
+        }
+    }
+    if(ret == -1){
+        respond(ftp_pi, 450, "An exception happened during the transfer");
+        printf("Transfer aborted as exception happened during the transfer.\n");
+        close(file);
+        close(data_socket);
+        data_socket = -1;
+        return;
+    }
+    respond(ftp_pi, 226, "Transfer complete.");
+    printf("Transmission complete\n");
+
+    // Close them while resetting the value.
+    close(file);
+    close(data_socket);
+    data_socket = -1;
+}
+
+// Showing the OS
 void do_SYST(){
     if(respond(ftp_pi, 215, "Remote System is Linux.")) {
         printf("sending response to pi error: %s(errno: %d)", strerror(errno), errno);
     }
 }
 
-//used to check username before any activities
+// Switch to different type of transmission. Actually it will not influence the transmission, for now.
+void do_TYPE(char* type){
+    if(strcmp(type, "I") == 0){
+        respond(ftp_pi, 200, "Switching to Binary mode.");
+        printf("Switching to Binary mode.\n");
+        strcpy(active_mode, "BINARY");
+    }else if(strcmp(type, "A") == 0){
+        respond(ftp_pi, 200, "Switching to ASCII mode.");
+        printf("Switching to ASCII mode.\n");
+        strcpy(active_mode, "ASCII");
+    }else{
+        respond(ftp_pi, 501, "Unsupported mode specified, mode unchanged.");
+        printf("Unsupported mode specified, mode unchanged.\n");
+    }
+}
+
+// Used to check username before any activities
 int do_USER(char* name){
     if(!strcmp(NAME,name)){
         if(respond(ftp_pi, 331, "User name okay, need password.")){
@@ -416,7 +494,7 @@ void str_dot2comma(char* ip){
     }
 }
 
-//Used to check the status of user account
+// Used to check the status of user account
 int validation(){
     if(flag==0){
         if(respond(ftp_pi, 332, "Need valid account for login.")){
