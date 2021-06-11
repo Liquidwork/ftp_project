@@ -15,8 +15,10 @@ static char NAME[32] = "student";
 static char PASSWORD[32] = "111111";
 static int flag = 0; // 0 for not log in yet, 1 for user input, 2 for logged in
 
-int listen_socket, ftp_pi;
-int passive_listen_socket, data_socket;
+static char active_user[32] = "UNAUTHORIZED";
+
+static int listen_socket, ftp_pi;
+static int passive_listen_socket, data_socket;
 
 void parse_command(char* input, char* command, char* param);
 int do_PASS(char* password);
@@ -68,7 +70,7 @@ int main(int argc, char** argv){
      */
 
     struct sockaddr_in src_addr = {0};
-    int len = sizeof(src_addr);
+    unsigned int len = sizeof(src_addr);
 
     while(1){
         printf("Trying to accept new connections.\n");
@@ -77,19 +79,26 @@ int main(int argc, char** argv){
             close(ftp_pi);
             continue;
         }
-        if(respond(ftp_pi, 200, "C language FTP by Dongyu and Zerui\r\n")){
+        printf("Receiving new connection from %s:%d\n", inet_ntoa(src_addr.sin_addr),
+               ntohs(src_addr.sin_port));
+        if(respond(ftp_pi, 200, "C language FTP by Dongyu and Zerui.\r\n")){
             printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
             return -1;
         }
         while(1){
             n = recv(ftp_pi, buff, MAXLINE, 0);
-            if(n < 3){
+            if(n == 0){
+                // If the socket was closed from the other side, return a 0
+                printf("The socket has been closed from the other side.\n");
+                break;
+            }
+            if(n < 3){ // Not valid command obviously, or no more data to read. Just continue.
                 continue;
             }
             buff[n] = '\0';
             trim(buff);
 
-            printf("[%s:%d]: %s\n", inet_ntoa(src_addr.sin_addr), ntohs(src_addr.sin_port), buff); // printing input
+            printf("[%s]: %s\n", active_user, buff); // printing input
 
             // Parse the string to command and param.
             parse_command(buff, command, param);
@@ -124,7 +133,10 @@ int main(int argc, char** argv){
 
         // Run the command
         close(ftp_pi);
-        sleep(1);
+        printf("Socket closed.\n");
+        // Reset login statue
+        flag = 0;
+        strcpy(active_user, "UNAUTHORIZED");
     }
     close(listen_socket);
     return 0;
@@ -132,19 +144,19 @@ int main(int argc, char** argv){
 
 // Parse input into command part and param part.
 void parse_command(char* input, char* command, char* param){
-    char flag = 0; // 0 for command part, 1 for param part.
+    char mode_flag = 0; // 0 for command part, 1 for param part.
     char *in_ptr = input;
     int bit = 0;
     *command = '\0'; // Reinitialize to avoid bug
     *param = '\0';
     while(*in_ptr != '\0'){
-        if(flag == 0){
+        if(mode_flag == 0){
             command[bit++] = *in_ptr;
             in_ptr++;
             if(*in_ptr == ' '){ // If next bit is space
                 command[bit] = '\0';
                 bit = 0;
-                flag = 1; // Set to next mode: parsing param
+                mode_flag = 1; // Set to next mode: parsing param
                 in_ptr++;
             }
         }else{
@@ -163,13 +175,15 @@ int do_PASS(char* password){
         if(respond(ftp_pi, 230, "User logged in, proceed.\r\n")){
             printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
         }
-        printf("Login success\n");
-        flag =2;
+        printf("Login success! Active user: %s\n", active_user);
+        flag = 2;
     } else{
         if(respond(ftp_pi, 530, "Not logged in.\r\n")){
             printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
         }
         printf("Password invalid\n");
+        strcpy(active_user, "UNAUTHORIZED");
+        flag = 0;
     }
     return flag;
 }
@@ -228,7 +242,7 @@ int do_PORT(char* ip_and_port){
 // Start a new do_PASV data socket
 int do_PASV(){
     struct sockaddr_in servaddr;
-    int len = sizeof(servaddr);
+    unsigned int len = sizeof(servaddr);
 
     printf("Passive mode on\n");
 
@@ -293,6 +307,7 @@ void do_QUIT(){
         printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
     }
     flag = 0;
+    strcpy(active_user, "");
     printf("FTP client quit\n");
 }
 
@@ -309,7 +324,8 @@ int do_USER(char* name){
         if(respond(ftp_pi, 331, "User name okay, need password.\r\n")){
             printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
         }
-        printf("Username check\n");
+        printf("Username checked\n");
+        strcpy(active_user, NAME);
         flag =1;
     }else{
         if(respond(ftp_pi, 332, "Need valid account for login.\r\n")){
