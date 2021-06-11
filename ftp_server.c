@@ -98,6 +98,8 @@ int main(int argc, char** argv){
                 do_USER(param);
             } else if(strcmp(command, "PASS")==0){
                 do_PASS(param);
+            } else if (strcmp(command, "SYST") == 0) {
+                do_SYST();
             } else if (flag == 2) { // If login successfully
                 // Try command list.
                 if (strcmp(command, "PASV") == 0) {
@@ -107,9 +109,6 @@ int main(int argc, char** argv){
                 } else if (strcmp(command, "QUIT") == 0) {
                     do_QUIT();
                     break;
-                }
-                else if (strcmp(command, "SYST") == 0) {
-                    do_SYST();
                 } else {
                     if (respond(ftp_pi, 503, "Unsupported command.\r\n")) {
                         printf("sending respond to pi error: %s(errno: %d)\n", strerror(errno), errno);
@@ -299,9 +298,7 @@ void do_QUIT(){
 
 //showing the OS
 void do_SYST(){
-    char res[128];
-    sprintf(res, "215 Remote System is Linux.\r\n");
-    if(send(ftp_pi, res, strlen(res) + 1, 0) != strlen(res) + 1) {
+    if(respond(ftp_pi, 215, "Remote System is Linux.\r\n")) {
         printf("sending response to pi error: %s(errno: %d)", strerror(errno), errno);
     }
 }
