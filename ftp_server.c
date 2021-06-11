@@ -85,7 +85,7 @@ int main(int argc, char** argv){
         }
         printf("Receiving new connection from %s:%d\n", inet_ntoa(src_addr.sin_addr),
                ntohs(src_addr.sin_port));
-        if(respond(ftp_pi, 200, "C language FTP by Dongyu and Zerui.\r\n")){
+        if(respond(ftp_pi, 200, "C language FTP by Dongyu and Zerui.")){
             printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
             return -1;
         }
@@ -125,7 +125,7 @@ int main(int argc, char** argv){
                     do_QUIT();
                     break;
                 } else {
-                    if (respond(ftp_pi, 503, "Unsupported command.\r\n")) {
+                    if (respond(ftp_pi, 503, "Unsupported command.")) {
                         printf("sending respond to pi error: %s(errno: %d)\n", strerror(errno), errno);
                         return -1;
                     }
@@ -180,7 +180,7 @@ void parse_command(char* input, char* command, char* param){
 // The method now is not completed, since file system not finished.
 void do_LIST(){
     if (data_socket != -1){ // If data connection is active.
-        respond(ftp_pi, 150, "Opening ASCII mode data connection for /bin/ls.\r\n");
+        respond(ftp_pi, 150, "Opening ASCII mode data connection for /bin/ls.");
         printf("Executing LIST");
         DIR *dir = opendir(".");
 
@@ -222,14 +222,14 @@ void do_LIST(){
             //printf("%s", buf);
             send(data_socket, buf, strlen(buf), 0);
         }
-        respond(ftp_pi, 226, "Transfer complete.\r\n");
+        respond(ftp_pi, 226, "Transfer complete.");
         printf("LIST transferred.");
         closedir(dir);
         // Close the socket.
         close(data_socket);
         data_socket = -1;
     }else{
-        respond(ftp_pi, 425, "Transfer aborted.\r\n");
+        respond(ftp_pi, 425, "Transfer aborted.");
         printf("LIST execution failed because of a unconnected transfer.");
     }
 }
@@ -238,13 +238,13 @@ void do_LIST(){
 // Response to PASS, used to check password after username check
 int do_PASS(char* password){
     if(!strcmp(PASSWORD, password)){
-        if(respond(ftp_pi, 230, "User logged in, proceed.\r\n")){
+        if(respond(ftp_pi, 230, "User logged in, proceed.")){
             printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
         }
         printf("Login success! Active user: %s\n", active_user);
         flag = 2;
     } else{
-        if(respond(ftp_pi, 530, "Not logged in.\r\n")){
+        if(respond(ftp_pi, 530, "Not logged in.")){
             printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
         }
         printf("Password invalid\n");
@@ -291,13 +291,13 @@ int do_PORT(char* ip_and_port){
         printf("bind socket error: %s(errno: %d)\n",strerror(errno),errno);
 
         // Providing a error code to show the error
-        if(respond(ftp_pi, 520, "Data connection failed\r\n")){
+        if(respond(ftp_pi, 520, "Data connection failed")){
             printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
             return -1;
         }
         return -1;
     }
-    if(respond(ftp_pi, 200, "PORT command successful. Consider using PASV.\r\n")){
+    if(respond(ftp_pi, 200, "PORT command successful. Consider using PASV.")){
         printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
         return -1;
     }
@@ -338,7 +338,7 @@ int do_PASV(){
     // Response in Pi
     char res[128];
 
-    sprintf(res, "Entering Passive Mode (127,0,0,1,%d,%d)\r\n", first_seg, second_seg);
+    sprintf(res, "Entering Passive Mode (127,0,0,1,%d,%d)", first_seg, second_seg);
     if(respond(ftp_pi, 227, res)){
         printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
         return -1;
@@ -369,7 +369,7 @@ int do_PASV(){
 
 // Quiting respond and server console output
 void do_QUIT(){
-    if(respond(ftp_pi, 221, "Goodbye.\r\n")){
+    if(respond(ftp_pi, 221, "Goodbye.")){
         printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
     }
     flag = 0;
@@ -379,7 +379,7 @@ void do_QUIT(){
 
 //showing the OS
 void do_SYST(){
-    if(respond(ftp_pi, 215, "Remote System is Linux.\r\n")) {
+    if(respond(ftp_pi, 215, "Remote System is Linux.")) {
         printf("sending response to pi error: %s(errno: %d)", strerror(errno), errno);
     }
 }
@@ -387,14 +387,14 @@ void do_SYST(){
 //used to check username before any activities
 int do_USER(char* name){
     if(!strcmp(NAME,name)){
-        if(respond(ftp_pi, 331, "User name okay, need password.\r\n")){
+        if(respond(ftp_pi, 331, "User name okay, need password.")){
             printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
         }
         printf("Username checked\n");
         strcpy(active_user, NAME);
         flag =1;
     }else{
-        if(respond(ftp_pi, 332, "Need valid account for login.\r\n")){
+        if(respond(ftp_pi, 332, "Need valid account for login.")){
             printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
         }
         printf("Username invalid\n");
@@ -416,12 +416,12 @@ void str_dot2comma(char* ip){
 //Used to check the status of user account
 int validation(){
     if(flag==0){
-        if(respond(ftp_pi, 332, "Need valid account for login.\r\n")){
+        if(respond(ftp_pi, 332, "Need valid account for login.")){
             printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
         }
         printf("Invalid username");
     } else if(flag ==1){
-        if(respond(ftp_pi, 332, "Need valid account for login.\r\n")){
+        if(respond(ftp_pi, 332, "Need valid account for login.")){
             printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
         }
         printf("Invalid username\n");
@@ -432,7 +432,7 @@ int validation(){
 // Send respond to specific socket, returning 0 indicate no error happens
 int respond(int socket, int statue, char* msg){
     char res[128];
-    sprintf(res, "%d %s", statue, msg);
+    sprintf(res, "%d %s\r\n", statue, msg);
     return send(socket, res, strlen(res), 0) - strlen(res);
 }
 
