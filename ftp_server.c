@@ -391,6 +391,7 @@ void do_QUIT(){
     printf("FTP client quit\n");
 }
 
+// Retransmission a file from server.
 void do_RETR(char* filename){
     int file;
     char buff[MAXLINE], res[64];
@@ -527,6 +528,7 @@ void trim(char* msg){
     }
 }
 
+// Generate permission string
 const char* statbuf_get_perms(struct stat *sbuf)
 {
     static char perms[] = "----------";
@@ -610,6 +612,7 @@ const char* statbuf_get_perms(struct stat *sbuf)
     return perms;
 }
 
+// Generate last edit date
 const char* statbuf_get_date(struct stat *sbuf)
 {
     static char datebuf[64] = {0};
