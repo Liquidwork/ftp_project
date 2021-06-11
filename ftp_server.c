@@ -70,6 +70,7 @@ int main(int argc, char** argv){
     int len = sizeof(src_addr);
 
     while(1){
+        printf("Trying to accept new connections.\n");
         if((ftp_pi = accept(listen_socket, (struct sockaddr*) &src_addr, &len)) == -1){
             printf("accept socket error: %s(errno: %d)\n",strerror(errno),errno);
             close(ftp_pi);
