@@ -7,7 +7,8 @@
 #include<netinet/in.h>
 #include<dirent.h>
 #include<unistd.h>
-#include <arpa/inet.h>
+#include<arpa/inet.h>
+#include<sys/stat.h>
 
 #define MAXLINE 1024
 
@@ -21,6 +22,7 @@ static int listen_socket, ftp_pi;
 static int passive_listen_socket, data_socket;
 
 void parse_command(char* input, char* command, char* param);
+void do_LIST();
 int do_PASS(char* password);
 int do_PASV();
 int do_PORT(char* ip_and_port);
@@ -31,6 +33,7 @@ void str_dot2comma(char* ip);
 int validation();
 int respond(int socket, int statue, char* msg);
 void trim(char* msg);
+const char* statbuf_get_perms(struct stat *sbuf);
 
 
 int main(int argc, char** argv){
@@ -71,6 +74,7 @@ int main(int argc, char** argv){
 
     struct sockaddr_in src_addr = {0};
     unsigned int len = sizeof(src_addr);
+    data_socket = -1;
 
     while(1){
         printf("Trying to accept new connections.\n");
@@ -113,6 +117,8 @@ int main(int argc, char** argv){
                 // Try command list.
                 if (strcmp(command, "PASV") == 0) {
                     do_PASV();
+                } else if (strcmp(command, "LIST") == 0) {
+                    do_LIST();
                 } else if (strcmp(command, "PORT") == 0) {
                     do_PORT(param);
                 } else if (strcmp(command, "QUIT") == 0) {
@@ -133,6 +139,8 @@ int main(int argc, char** argv){
 
         // Run the command
         close(ftp_pi);
+        close(data_socket); // Close it avoid not closed before.
+        data_socket = -1;
         printf("Socket closed.\n");
         // Reset login statue
         flag = 0;
@@ -168,8 +176,66 @@ void parse_command(char* input, char* command, char* param){
     // printf("Command: <%s>, Param: <%s>", command, param);
 }
 
+// Send list of active path through data connection
+// The method now is not completed, since file system not finished.
+void do_LIST(){
+    if (data_socket != -1){ // If data connection is active.
+        respond(ftp_pi, 150, "Opening ASCII mode data connection for /bin/ls.\r\n");
+        printf("Executing LIST");
+        DIR *dir = opendir(".");
 
-//Response to PASS, used to check password after username check
+        struct dirent *dt;
+        struct stat sbuf;
+        while ((dt = readdir(dir)) != NULL)
+        {
+            if (lstat(dt->d_name, &sbuf) < 0)
+            {
+                continue;
+            }
+            if (dt->d_name[0] == '.')
+                continue;
+
+            char buf[1024] = {0};
+
+            const char *perms = statbuf_get_perms(&sbuf);
+
+
+            int off = 0;
+            off += sprintf(buf, "%s ", perms);
+            off += sprintf(buf + off, " %3d %-8d %-8d ", sbuf.st_nlink, sbuf.st_uid, sbuf.st_gid);
+            off += sprintf(buf + off, "%8lu ", (unsigned long)sbuf.st_size);
+
+            //char *datebuf = statbuf_get_date(&sbuf);
+            //off += sprintf(buf + off, "%s ", datebuf);
+            if (S_ISLNK(sbuf.st_mode))
+            {
+                char tmp[1024] = {0};
+                readlink(dt->d_name, tmp, sizeof(tmp));
+                off += sprintf(buf + off, "%s -> %s\r\n", dt->d_name, tmp);
+            }
+            else
+            {
+                off += sprintf(buf + off, "%s\r\n", dt->d_name);
+            }
+
+
+            //printf("%s", buf);
+            send(data_socket, buf, strlen(buf), 0);
+        }
+        respond(ftp_pi, 226, "Transfer complete.\r\n");
+        printf("LIST transferred.");
+        closedir(dir);
+        // Close the socket.
+        close(data_socket);
+        data_socket = -1;
+    }else{
+        respond(ftp_pi, 425, "Transfer aborted.\r\n");
+        printf("LIST execution failed because of a unconnected transfer.");
+    }
+}
+
+
+// Response to PASS, used to check password after username check
 int do_PASS(char* password){
     if(!strcmp(PASSWORD, password)){
         if(respond(ftp_pi, 230, "User logged in, proceed.\r\n")){
@@ -380,3 +446,103 @@ void trim(char* msg){
     }
 }
 
+const char* statbuf_get_perms(struct stat *sbuf)
+{
+    static char perms[] = "----------";
+    perms[0] = '?';
+
+    mode_t mode = sbuf->st_mode;
+    switch (mode & S_IFMT)
+    {
+        case S_IFREG:
+            perms[0] = '-';
+            break;
+        case S_IFDIR:
+            perms[0] = 'd';
+            break;
+        case S_IFLNK:
+            perms[0] = 'l';
+            break;
+        case S_IFIFO:
+            perms[0] = 'p';
+            break;
+        case S_IFSOCK:
+            perms[0] = 's';
+            break;
+        case S_IFCHR:
+            perms[0] = 'c';
+            break;
+        case S_IFBLK:
+            perms[0] = 'b';
+            break;
+    }
+
+    if (mode & S_IRUSR)
+    {
+        perms[1] = 'r';
+    }
+    if (mode & S_IWUSR)
+    {
+        perms[2] = 'w';
+    }
+    if (mode & S_IXUSR)
+    {
+        perms[3] = 'x';
+    }
+    if (mode & S_IRGRP)
+    {
+        perms[4] = 'r';
+    }
+    if (mode & S_IWGRP)
+    {
+        perms[5] = 'w';
+    }
+    if (mode & S_IXGRP)
+    {
+        perms[6] = 'x';
+    }
+    if (mode & S_IROTH)
+    {
+        perms[7] = 'r';
+    }
+    if (mode & S_IWOTH)
+    {
+        perms[8] = 'w';
+    }
+    if (mode & S_IXOTH)
+    {
+        perms[9] = 'x';
+    }
+    if (mode & S_ISUID)
+    {
+        perms[3] = (perms[3] == 'x') ? 's' : 'S';
+    }
+    if (mode & S_ISGID)
+    {
+        perms[6] = (perms[6] == 'x') ? 's' : 'S';
+    }
+    if (mode & S_ISVTX)
+    {
+        perms[9] = (perms[9] == 'x') ? 't' : 'T';
+    }
+
+    return perms;
+}
+
+//const char* statbuf_get_date(struct stat *sbuf)
+//{
+//    static char datebuf[64] = {0};
+//    const char *p_date_format = "%b %e %H:%M";
+//    struct timeval tv;
+//    gettimeofday(&tv, NULL);
+//    time_t local_time = tv.tv_sec;
+//    if (sbuf->st_mtime > local_time || (local_time - sbuf->st_mtime) > 60*60*24*182)
+//    {
+//        p_date_format = "%b %e  %Y";
+//    }
+//
+//    struct tm* p_tm = localtime(&local_time);
+//    strftime(datebuf, sizeof(datebuf), p_date_format, p_tm);
+//
+//    return datebuf;
+//}
