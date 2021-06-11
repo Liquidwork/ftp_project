@@ -9,6 +9,8 @@
 #include<unistd.h>
 #include<arpa/inet.h>
 #include<sys/stat.h>
+#include<time.h>
+#include <sys/procfs.h>
 
 #define MAXLINE 1024
 
@@ -34,6 +36,7 @@ int validation();
 int respond(int socket, int statue, char* msg);
 void trim(char* msg);
 const char* statbuf_get_perms(struct stat *sbuf);
+const char* statbuf_get_date(struct stat *sbuf);
 
 
 int main(int argc, char** argv){
@@ -205,8 +208,8 @@ void do_LIST(){
             off += sprintf(buf + off, " %3d %-8d %-8d ", sbuf.st_nlink, sbuf.st_uid, sbuf.st_gid);
             off += sprintf(buf + off, "%8lu ", (unsigned long)sbuf.st_size);
 
-            //char *datebuf = statbuf_get_date(&sbuf);
-            //off += sprintf(buf + off, "%s ", datebuf);
+            char *datebuf = statbuf_get_date(&sbuf);
+            off += sprintf(buf + off, "%s ", datebuf);
             if (S_ISLNK(sbuf.st_mode))
             {
                 char tmp[1024] = {0};
@@ -529,20 +532,20 @@ const char* statbuf_get_perms(struct stat *sbuf)
     return perms;
 }
 
-//const char* statbuf_get_date(struct stat *sbuf)
-//{
-//    static char datebuf[64] = {0};
-//    const char *p_date_format = "%b %e %H:%M";
-//    struct timeval tv;
-//    gettimeofday(&tv, NULL);
-//    time_t local_time = tv.tv_sec;
-//    if (sbuf->st_mtime > local_time || (local_time - sbuf->st_mtime) > 60*60*24*182)
-//    {
-//        p_date_format = "%b %e  %Y";
-//    }
-//
-//    struct tm* p_tm = localtime(&local_time);
-//    strftime(datebuf, sizeof(datebuf), p_date_format, p_tm);
-//
-//    return datebuf;
-//}
+const char* statbuf_get_date(struct stat *sbuf)
+{
+    static char datebuf[64] = {0};
+    const char *p_date_format = "%b %e %H:%M";
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    time_t local_time = tv.tv_sec;
+    if (sbuf->st_mtime > local_time || (local_time - sbuf->st_mtime) > 60*60*24*182)
+    {
+        p_date_format = "%b %e  %Y";
+    }
+
+    struct tm* p_tm = localtime(&local_time);
+    strftime(datebuf, sizeof(datebuf), p_date_format, p_tm);
+
+    return datebuf;
+}
