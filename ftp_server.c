@@ -2,6 +2,7 @@
 #include<stdlib.h>
 #include<string.h>
 #include<errno.h>
+#include<sys/stat.h>
 #include<sys/types.h>
 #include<sys/socket.h>
 #include<netinet/in.h>
@@ -25,14 +26,23 @@ static char active_mode[32] = "ASCII";
 static int listen_socket, ftp_pi;
 static int passive_listen_socket, data_socket;
 
+//HELP!
+static char oldfilen[256]="";
+
 void parse_command(char* input, char* command, char* param);
+void do_CWD(char* path);
+void do_DELE(char* path);
 void do_LIST();
+void do_MKD(char* path);
 int do_PASS(char* password);
 int do_PASV();
 int do_PORT(char* ip_and_port);
+void do_PWD();
 void do_QUIT();
 void do_RETR(char* filename);
 void do_STOR(char* filename);
+void do_RNFR(char* path);
+void do_RNTO(char* path);
 void do_SYST();
 void do_TYPE(char* type);
 int do_USER(char* name);
@@ -128,13 +138,25 @@ int main(int argc, char** argv){
                 do_SYST();
             } else if (flag == 2) { // If login successfully
                 // Try command list.
-                if (strcmp(command, "LIST") == 0) {
+                if(strcmp(command, "CWD") == 0) {
+                    do_CWD(param);
+                } else if (strcmp(command, "DELE") == 0) {
+                    do_DELE(param);
+                } else if (strcmp(command, "LIST") == 0) {
                     do_LIST();
+                } else if (strcmp(command, "MKD") == 0) {
+                    do_MKD(param);
                 } else if (strcmp(command, "PASV") == 0) {
                     do_PASV();
                 } else if (strcmp(command, "PORT") == 0) {
                     do_PORT(param);
-                } else if (strcmp(command, "TYPE") == 0) {
+                } else if (strcmp(command, "PWD") == 0 ||strcmp(command, "PWDT") == 0) {
+                    do_PWD();
+                } else if (strcmp(command, "RNFR") == 0) {
+                    do_RNFR(param);
+                } else if (strcmp(command, "RNTO") == 0) {
+                    do_RNTO(param);
+                }else if (strcmp(command, "TYPE") == 0) {
                     do_TYPE(param);
                 } else if (strcmp(command, "RETR") == 0) {
                     do_RETR(param);
@@ -190,7 +212,39 @@ void parse_command(char* input, char* command, char* param){
         }
     }
     param[bit] = '\0';
-    // printf("Command: <%s>, Param: <%s>", command, param);
+    printf("Command: <%s>, Param: <%s>", command, param);
+}
+
+//Change working directory
+void do_CWD(char* path){
+    if(chdir(path)== -1){
+        if(respond(ftp_pi, 550,"No such directory")){
+            printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
+        }
+    } else{
+        char buf[1024];
+        getcwd(buf,sizeof(buf));
+        printf("change to  directory: %s\n",buf);
+        if(respond(ftp_pi, 257,buf)){
+            printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
+        }
+    }
+}
+
+//delete a file or directory
+void do_DELE(char* path){
+    int isRemove = remove(path);
+    if( isRemove==0 ) {
+        printf("delete :%s\n", path);
+        if (respond(ftp_pi, 250, "delete success")) {
+            printf("sending respond to pi error: %s(errno: %d)\n", strerror(errno), errno);
+        }
+    }else {
+        printf("delete failed!");
+        if (respond(ftp_pi, 450, "Can't delete file or directory, may not existed")) {
+            printf("sending respond to pi error: %s(errno: %d)\n", strerror(errno), errno);
+        }
+    }
 }
 
 // Send list of active path through data connection
@@ -253,6 +307,21 @@ void do_LIST(){
     }
 }
 
+//try Create a directory
+void do_MKD(char* path){
+    int isCreate = mkdir(path,775);
+    if( isCreate==0 ) {
+        printf("create path:%s\n", path);
+        if (respond(ftp_pi, 250, path)) {
+            printf("sending respond to pi error: %s(errno: %d)\n", strerror(errno), errno);
+        }
+    }else {
+        printf("create path failed!");
+        if (respond(ftp_pi, 550, "Create failed, invalid name or diretory existed")) {
+            printf("sending respond to pi error: %s(errno: %d)\n", strerror(errno), errno);
+        }
+    }
+}
 
 // Response to PASS, used to check password after username check
 int do_PASS(char* password){
@@ -384,6 +453,16 @@ int do_PASV(){
     close(passive_listen_socket); // Close the passive listening
 
     return 0;
+}
+
+// Display curretn working directory
+void do_PWD(){
+    char buf[1024];
+    getcwd(buf,sizeof(buf));
+    printf("current working directory: %s\n",buf);
+    if(respond(ftp_pi, 257,buf)){
+        printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
+    }
 }
 
 // Quiting respond and server console output
@@ -539,6 +618,38 @@ void do_STOR(char* filename){
     close(file);
     close(data_socket);
     data_socket = -1;
+}
+
+
+
+void do_RNFR(char* path){
+    printf("ready to rename : %s\n", path);
+    strcpy(oldfilen, path);
+    if(access(path, W_OK)==0){
+        if(respond(ftp_pi, 350,"Ready for RNTO.")){
+            printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
+        }
+    } else{
+        if(respond(ftp_pi, 550,"RNFR command faild.")){
+            printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
+        }
+    }
+}
+
+void do_RNTO(char* path){
+    printf("from %s to %s\n", oldfilen, path);
+    if (rename(oldfilen, path)==0){
+        printf("%s rename to: %s\n",oldfilen, path);
+        if(respond(ftp_pi, 250,"Rename successful.")){
+            printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
+        }
+    } else{
+        if(respond(ftp_pi, 503,"Cannot find the file.")){
+            printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
+        }
+    }
+
+    strcpy(oldfilen, "");
 }
 
 // Showing the OS, UNIX
