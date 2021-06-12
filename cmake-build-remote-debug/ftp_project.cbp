@@ -70,8 +70,6 @@
       </Build>
       <Unit filename="/tmp/tmp.7GPrJPCV09/ftp_server.c">
       </Unit>
-      <Unit filename="/tmp/tmp.7GPrJPCV09/test.c">
-      </Unit>
       <Unit filename="/tmp/tmp.7GPrJPCV09/CMakeLists.txt">
           <Option virtualFolder="CMake Files\" />
       </Unit>

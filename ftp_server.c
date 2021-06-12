@@ -26,6 +26,7 @@ static char active_mode[32] = "ASCII";
 static int listen_socket, ftp_pi;
 static int passive_listen_socket, data_socket;
 
+//HELP!
 static char* oldfilen="";
 
 void parse_command(char* input, char* command, char* param);
@@ -151,7 +152,6 @@ int main(int argc, char** argv){
                 } else if (strcmp(command, "RNFR") == 0) {
                     do_RNFR(param);
                 } else if (strcmp(command, "RNTO") == 0) {
-                    printf("RNTO");
                     do_RNTO(param);
                 }else if (strcmp(command, "TYPE") == 0) {
                     do_TYPE(param);
@@ -526,17 +526,27 @@ void do_RETR(char* filename){
 void do_RNFR(char* path){
     printf("ready to rename : %s\n", path);
     oldfilen = path;
-}
-
-void do_RNTO(char* path){
-    if (rename(oldfilen, path)==0){
-        printf("%s rename to: %s\n",oldfilen, path);
-        if(respond(ftp_pi, 250,"Requested file action okay, file renamed.")){
+    if(access(path, W_OK)==0){
+        if(respond(ftp_pi, 350,"Ready for RNTO.")){
             printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
         }
     } else{
+        if(respond(ftp_pi, 550,"RNFR command faild.")){
+            printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
+        }
+    }
+    printf("%s\n", oldfilen);
+}
+
+void do_RNTO(char* path){
+    printf("from %s to %s\n", oldfilen, path);
+    if (rename(oldfilen, path)==0){
         printf("%s rename to: %s\n",oldfilen, path);
-        if(respond(ftp_pi, 2503,"Cannot find the file.")){
+        if(respond(ftp_pi, 250,"Rename successful.")){
+            printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
+        }
+    } else{
+        if(respond(ftp_pi, 503,"Cannot find the file.")){
             printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
         }
     }

@@ -1,6 +1,5 @@
 FILE(REMOVE_RECURSE
   "CMakeFiles/ftp_project.dir/ftp_server.c.o"
-  "CMakeFiles/ftp_project.dir/test.c.o"
   "ftp_project.pdb"
   "ftp_project"
 )

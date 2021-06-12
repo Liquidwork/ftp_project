@@ -72,39 +72,14 @@ CMakeFiles/ftp_project.dir/ftp_server.c.o.provides: CMakeFiles/ftp_project.dir/f
 
 CMakeFiles/ftp_project.dir/ftp_server.c.o.provides.build: CMakeFiles/ftp_project.dir/ftp_server.c.o
 
-CMakeFiles/ftp_project.dir/test.c.o: CMakeFiles/ftp_project.dir/flags.make
-CMakeFiles/ftp_project.dir/test.c.o: ../test.c
-	$(CMAKE_COMMAND) -E cmake_progress_report /tmp/tmp.7GPrJPCV09/cmake-build-remote-debug/CMakeFiles $(CMAKE_PROGRESS_2)
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Building C object CMakeFiles/ftp_project.dir/test.c.o"
-	/usr/bin/cc  $(C_DEFINES) $(C_FLAGS) -o CMakeFiles/ftp_project.dir/test.c.o   -c /tmp/tmp.7GPrJPCV09/test.c
-
-CMakeFiles/ftp_project.dir/test.c.i: cmake_force
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing C source to CMakeFiles/ftp_project.dir/test.c.i"
-	/usr/bin/cc  $(C_DEFINES) $(C_FLAGS) -E /tmp/tmp.7GPrJPCV09/test.c > CMakeFiles/ftp_project.dir/test.c.i
-
-CMakeFiles/ftp_project.dir/test.c.s: cmake_force
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling C source to assembly CMakeFiles/ftp_project.dir/test.c.s"
-	/usr/bin/cc  $(C_DEFINES) $(C_FLAGS) -S /tmp/tmp.7GPrJPCV09/test.c -o CMakeFiles/ftp_project.dir/test.c.s
-
-CMakeFiles/ftp_project.dir/test.c.o.requires:
-.PHONY : CMakeFiles/ftp_project.dir/test.c.o.requires
-
-CMakeFiles/ftp_project.dir/test.c.o.provides: CMakeFiles/ftp_project.dir/test.c.o.requires
-	$(MAKE) -f CMakeFiles/ftp_project.dir/build.make CMakeFiles/ftp_project.dir/test.c.o.provides.build
-.PHONY : CMakeFiles/ftp_project.dir/test.c.o.provides
-
-CMakeFiles/ftp_project.dir/test.c.o.provides.build: CMakeFiles/ftp_project.dir/test.c.o
-
 # Object files for target ftp_project
 ftp_project_OBJECTS = \
-"CMakeFiles/ftp_project.dir/ftp_server.c.o" \
-"CMakeFiles/ftp_project.dir/test.c.o"
+"CMakeFiles/ftp_project.dir/ftp_server.c.o"
 
 # External object files for target ftp_project
 ftp_project_EXTERNAL_OBJECTS =
 
 ftp_project: CMakeFiles/ftp_project.dir/ftp_server.c.o
-ftp_project: CMakeFiles/ftp_project.dir/test.c.o
 ftp_project: CMakeFiles/ftp_project.dir/build.make
 ftp_project: CMakeFiles/ftp_project.dir/link.txt
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --red --bold "Linking C executable ftp_project"
@@ -115,7 +90,6 @@ CMakeFiles/ftp_project.dir/build: ftp_project
 .PHONY : CMakeFiles/ftp_project.dir/build
 
 CMakeFiles/ftp_project.dir/requires: CMakeFiles/ftp_project.dir/ftp_server.c.o.requires
-CMakeFiles/ftp_project.dir/requires: CMakeFiles/ftp_project.dir/test.c.o.requires
 .PHONY : CMakeFiles/ftp_project.dir/requires
 
 CMakeFiles/ftp_project.dir/clean:

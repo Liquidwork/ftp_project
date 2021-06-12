@@ -135,30 +135,6 @@ ftp_server.c.s:
 	$(MAKE) -f CMakeFiles/ftp_project.dir/build.make CMakeFiles/ftp_project.dir/ftp_server.c.s
 .PHONY : ftp_server.c.s
 
-test.o: test.c.o
-.PHONY : test.o
-
-# target to build an object file
-test.c.o:
-	$(MAKE) -f CMakeFiles/ftp_project.dir/build.make CMakeFiles/ftp_project.dir/test.c.o
-.PHONY : test.c.o
-
-test.i: test.c.i
-.PHONY : test.i
-
-# target to preprocess a source file
-test.c.i:
-	$(MAKE) -f CMakeFiles/ftp_project.dir/build.make CMakeFiles/ftp_project.dir/test.c.i
-.PHONY : test.c.i
-
-test.s: test.c.s
-.PHONY : test.s
-
-# target to generate assembly for a file
-test.c.s:
-	$(MAKE) -f CMakeFiles/ftp_project.dir/build.make CMakeFiles/ftp_project.dir/test.c.s
-.PHONY : test.c.s
-
 # Help Target
 help:
 	@echo "The following are some of the valid targets for this Makefile:"
@@ -171,9 +147,6 @@ help:
 	@echo "... ftp_server.o"
 	@echo "... ftp_server.i"
 	@echo "... ftp_server.s"
-	@echo "... test.o"
-	@echo "... test.i"
-	@echo "... test.s"
 .PHONY : help
 
 

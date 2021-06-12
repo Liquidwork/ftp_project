@@ -5,7 +5,6 @@ SET(CMAKE_DEPENDS_LANGUAGES
 # The set of files for implicit dependencies of each language:
 SET(CMAKE_DEPENDS_CHECK_C
   "/tmp/tmp.7GPrJPCV09/ftp_server.c" "/tmp/tmp.7GPrJPCV09/cmake-build-remote-debug/CMakeFiles/ftp_project.dir/ftp_server.c.o"
-  "/tmp/tmp.7GPrJPCV09/test.c" "/tmp/tmp.7GPrJPCV09/cmake-build-remote-debug/CMakeFiles/ftp_project.dir/test.c.o"
   )
 SET(CMAKE_C_COMPILER_ID "GNU")
 
