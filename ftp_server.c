@@ -27,7 +27,7 @@ static int listen_socket, ftp_pi;
 static int passive_listen_socket, data_socket;
 
 //HELP!
-static char* oldfilen="";
+static char oldfilen[256]="";
 
 void parse_command(char* input, char* command, char* param);
 void do_CWD(char* path);
@@ -525,7 +525,7 @@ void do_RETR(char* filename){
 //
 void do_RNFR(char* path){
     printf("ready to rename : %s\n", path);
-    oldfilen = path;
+    strcpy(oldfilen, path);
     if(access(path, W_OK)==0){
         if(respond(ftp_pi, 350,"Ready for RNTO.")){
             printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
@@ -535,7 +535,6 @@ void do_RNFR(char* path){
             printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
         }
     }
-    printf("%s\n", oldfilen);
 }
 
 void do_RNTO(char* path){
@@ -550,7 +549,8 @@ void do_RNTO(char* path){
             printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
         }
     }
-    oldfilen = "";
+
+    strcpy(oldfilen, "");
 }
 
 // Showing the OS
