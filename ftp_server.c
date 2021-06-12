@@ -27,7 +27,7 @@ static int listen_socket, ftp_pi;
 static int passive_listen_socket, data_socket;
 
 //HELP!
-static char oldfilen[256]="";
+static char oldfilen[256]=""; // Linux pathname must less than 4096 byte, but I assume there is no need to prepare so much memory for it.
 
 void parse_command(char* input, char* command, char* param);
 void do_CWD(char* path);
@@ -53,7 +53,7 @@ void trim(char* msg);
 char* trim_pathname(char* pathname);
 const char* statbuf_get_perms(struct stat *sbuf);
 const char* statbuf_get_date(struct stat *sbuf);
-int strrpl(char* str, char* dest, char* from, char* to);
+void strrpl(char* str, char* dest, char* from, char* to);
 
 
 int main(int argc, char** argv){
@@ -97,6 +97,9 @@ int main(int argc, char** argv){
     data_socket = -1;
 
     while(1){
+
+        chdir("/home/student/"); // Initialize the folder from student root
+
         printf("Trying to accept new connections.\n");
         if((ftp_pi = accept(listen_socket, (struct sockaddr*) &src_addr, &len)) == -1){
             printf("accept socket error: %s(errno: %d)\n",strerror(errno),errno);
@@ -212,12 +215,12 @@ void parse_command(char* input, char* command, char* param){
         }
     }
     param[bit] = '\0';
-    printf("Command: <%s>, Param: <%s>", command, param);
+    //printf("Command: <%s>, Param: <%s>\n", command, param);
 }
 
 //Change working directory
 void do_CWD(char* path){
-    if(chdir(path)== -1){
+    if(chdir(path) == -1){
         if(respond(ftp_pi, 550,"No such directory")){
             printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
         }
@@ -236,12 +239,12 @@ void do_DELE(char* path){
     int isRemove = remove(path);
     if( isRemove==0 ) {
         printf("delete :%s\n", path);
-        if (respond(ftp_pi, 250, "delete success")) {
+        if (respond(ftp_pi, 250, "Delete success.")) {
             printf("sending respond to pi error: %s(errno: %d)\n", strerror(errno), errno);
         }
     }else {
         printf("delete failed!");
-        if (respond(ftp_pi, 450, "Can't delete file or directory, may not existed")) {
+        if (respond(ftp_pi, 450, "Can't delete file or directory, may not existed.")) {
             printf("sending respond to pi error: %s(errno: %d)\n", strerror(errno), errno);
         }
     }
@@ -317,7 +320,7 @@ void do_MKD(char* path){
         }
     }else {
         printf("create path failed!");
-        if (respond(ftp_pi, 550, "Create failed, invalid name or diretory existed")) {
+        if (respond(ftp_pi, 550, "Create failed, invalid name or directory existed.")) {
             printf("sending respond to pi error: %s(errno: %d)\n", strerror(errno), errno);
         }
     }
@@ -455,12 +458,12 @@ int do_PASV(){
     return 0;
 }
 
-// Display curretn working directory
+// Display current working directory
 void do_PWD(){
     char buf[1024];
-    getcwd(buf,sizeof(buf));
-    printf("current working directory: %s\n",buf);
-    if(respond(ftp_pi, 257,buf)){
+    getcwd(buf, sizeof(buf));
+    printf("Current working directory change to: %s\n",buf);
+    if(respond(ftp_pi, 257, buf)){
         printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
     }
 }
@@ -541,13 +544,11 @@ void do_RETR(char* filename){
     data_socket = -1;
 }
 
-// Store a file to the server. Now all files will be stored under /home/student/ftptest/ folder.
-// If transmission failed, the tmp file will be deleted.
+// Store a file to the server. If transmission failed, the tmp file will be deleted.
 // It is a risky operation since unsuccessful transmission will overwrite a existing file before deletion.
 void do_STOR(char* filename){
     int file;
     char buff[MAXLINE];
-    char fullpath[256]; // Linux pathname must less than 4096 byte, but I assume there is no need to prepare so much memory for it.
     if (data_socket == -1){ // If connection is off
         respond(ftp_pi, 425, "Transfer aborted.");
         printf("REST execution failed because of a unconnected transfer.\n");
@@ -555,11 +556,10 @@ void do_STOR(char* filename){
     }
     filename = trim_pathname(filename);
     printf("Executing STOR. Trying to receive file: %s in %s mode.\n", filename, active_mode);
-    sprintf(fullpath, "/home/student/ftptest/%s", filename);
-    printf("The file will be stored as %s\n", fullpath);
+    printf("The file will be stored as %s\n", filename);
 
     // Try to open the file, if file does not exist, create it.
-    if((file = open(fullpath, O_WRONLY | O_CREAT)) == -1)
+    if((file = open(filename, O_WRONLY | O_CREAT)) == -1)
     {
         respond(ftp_pi, 550, "File not writeable.");
         printf("Transmission failed because of file is inaccessible.\n");
@@ -572,16 +572,16 @@ void do_STOR(char* filename){
 
     int ret, total_size = 0;
     if(strcmp(active_mode, "ASCII") == 0){
-        char asc_buff[MAXLINE]; int size;
+        char asc_buff[MAXLINE];
         char final = '\0';
         while((ret = recv(data_socket, buff, MAXLINE - 1, 0)) > 0)
         {
             buff[ret] = '\0';
             // If the buff read end between a '\r' and a '\n', remove that '\r'
             final = buff[ret - 1];
-            if(final == '\r' && buff[0] == '\n');
-            lseek(file, -1, SEEK_CUR); // Later, the input to file will overwrite the value.
-
+            if(final == '\r' && buff[0] == '\n') {
+                lseek(file, -1, SEEK_CUR); // Later, the input to file will overwrite the value.
+            }
             strrpl(buff, asc_buff, "\r\n", "\n");
             if(write(file, asc_buff, strlen(asc_buff)) == -1){
                 ret = -1;
@@ -603,7 +603,7 @@ void do_STOR(char* filename){
     if(ret == -1){
         respond(ftp_pi, 450, "An exception happened during the transfer");
         printf("Transfer aborted as exception happened during the transfer.\n");
-        if (remove(fullpath) == 0){
+        if (remove(filename) == 0){
             printf("Tmp file removed.\n");
         }
         close(file);
@@ -739,7 +739,7 @@ void trim(char* msg){
 
 // Trim the path to file name, returning the char sequence which is the beginning of file name.
 char* trim_pathname(char* pathname){
-    char *last_dash = pathname;
+    char *last_dash = pathname - 1;
     while (*pathname != '\0'){
         if(*pathname == '/'){
             last_dash = pathname;
@@ -853,17 +853,16 @@ const char* statbuf_get_date(struct stat *sbuf)
 }
 
 // Replace segment of a string. Beware of memory leek when converting from small segment to a larger one.
-int strrpl(char* str, char* dest, char* from, char* to){
-    int i, off = 0;
+void strrpl(char* str, char* dest, char* from, char* to){
+    int i;
 
     *dest = '\0'; // Reset the string
     for(i = 0; i < strlen(str); i++){
         if(!strncmp(str+i, from,strlen(from))){ // compare string
-            off += strcat(dest, to);
+            strcat(dest, to);
             i += strlen(from) - 1;
         }else{
-            off += strncat(dest,str + i,1);
+            strncat(dest,str + i,1);
         }
     }
-    return off;
 }
