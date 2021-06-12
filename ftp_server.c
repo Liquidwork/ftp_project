@@ -32,6 +32,7 @@ int do_PASV();
 int do_PORT(char* ip_and_port);
 void do_QUIT();
 void do_RETR(char* filename);
+void do_STOR(char* filename);
 void do_SYST();
 void do_TYPE(char* type);
 int do_USER(char* name);
@@ -39,8 +40,10 @@ void str_dot2comma(char* ip);
 int validation();
 int respond(int socket, int statue, char* msg);
 void trim(char* msg);
+char* trim_pathname(char* pathname);
 const char* statbuf_get_perms(struct stat *sbuf);
 const char* statbuf_get_date(struct stat *sbuf);
+int strrpl(char* str, char* dest, char* from, char* to);
 
 
 int main(int argc, char** argv){
@@ -114,9 +117,9 @@ int main(int argc, char** argv){
             // Parse the string to command and param.
             parse_command(buff, command, param);
 
-            if(strcmp(command, "USER")==0){
+            if (strcmp(command, "USER")==0){
                 do_USER(param);
-            } else if(strcmp(command, "PASS")==0){
+            } else if (strcmp(command, "PASS")==0){
                 do_PASS(param);
             } else if (strcmp(command, "QUIT") == 0) {
                 do_QUIT();
@@ -135,6 +138,8 @@ int main(int argc, char** argv){
                     do_TYPE(param);
                 } else if (strcmp(command, "RETR") == 0) {
                     do_RETR(param);
+                } else if (strcmp(command, "STOR") == 0) {
+                    do_STOR(param);
                 } else {
                     if (respond(ftp_pi, 503, "Unsupported command.")) {
                         printf("sending respond to pi error: %s(errno: %d)\n", strerror(errno), errno);
@@ -388,7 +393,7 @@ void do_QUIT(){
     }
     flag = 0;
     strcpy(active_user, "");
-    printf("FTP client quit\n");
+    printf("FTP client quit.\n");
 }
 
 // Retransmission a file from server.
@@ -397,7 +402,7 @@ void do_RETR(char* filename){
     char buff[MAXLINE], res[64];
     if (data_socket == -1){ // If connection is off
         respond(ftp_pi, 425, "Transfer aborted.");
-        printf("REST execution failed because of a unconnected transfer.");
+        printf("REST execution failed because of a unconnected transfer.\n");
         return;
     }
     printf("Executing RETR. Trying to transfer file: %s in %s mode.\n", filename, active_mode);
@@ -412,20 +417,34 @@ void do_RETR(char* filename){
     }
     // Getting the size of the file.
     int size = lseek(file, 0, SEEK_END); // Set to end and get size
-    sprintf(res, "Opening %s mode data connection for %s (%i byte).", active_mode, filename, size);
+    sprintf(res, "Opening %s mode data connection for %s (%i bytes).", active_mode, filename, size);
     respond(ftp_pi, 150, res);
-    printf("Trying to transmit file: %s (%i byte)\n", filename, size);
+    printf("Trying to transmit file: %s (%i bytes)\n", filename, size);
     lseek(file, 0, SEEK_SET); // Set to start again for transmission
 
 
     int ret;
-    while((ret = read(file, buff, MAXLINE)) > 0)
-    {
-        if(send(data_socket, buff, ret, 0) == -1){
-            ret = -1;
-            break;
+    if(strcmp(active_mode, "ASCII") == 0){
+        char asc_buff[MAXLINE * 2];
+        while((ret = read(file, buff, MAXLINE - 1)) > 0)
+        {
+            buff[ret] = '\0';
+            strrpl(buff, asc_buff, "\n", "\r\n"); // return value is bad
+            if(send(data_socket, asc_buff, strlen(asc_buff), 0) == -1){
+                ret = -1;
+                break;
+            }
+        }
+    }else{ // Default as binary
+        while((ret = read(file, buff, MAXLINE)) > 0)
+        {
+            if(send(data_socket, buff, ret, 0) == -1){
+                ret = -1;
+                break;
+            }
         }
     }
+
     if(ret == -1){
         respond(ftp_pi, 450, "An exception happened during the transfer");
         printf("Transfer aborted as exception happened during the transfer.\n");
@@ -435,7 +454,7 @@ void do_RETR(char* filename){
         return;
     }
     respond(ftp_pi, 226, "Transfer complete.");
-    printf("Transmission complete\n");
+    printf("Transmission complete.\n");
 
     // Close them while resetting the value.
     close(file);
@@ -443,14 +462,93 @@ void do_RETR(char* filename){
     data_socket = -1;
 }
 
-// Showing the OS
+// Store a file to the server. Now all files will be stored under /home/student/ftptest/ folder.
+// If transmission failed, the tmp file will be deleted.
+// It is a risky operation since unsuccessful transmission will overwrite a existing file before deletion.
+void do_STOR(char* filename){
+    int file;
+    char buff[MAXLINE];
+    char fullpath[256]; // Linux pathname must less than 4096 byte, but I assume there is no need to prepare so much memory for it.
+    if (data_socket == -1){ // If connection is off
+        respond(ftp_pi, 425, "Transfer aborted.");
+        printf("REST execution failed because of a unconnected transfer.\n");
+        return;
+    }
+    filename = trim_pathname(filename);
+    printf("Executing STOR. Trying to receive file: %s in %s mode.\n", filename, active_mode);
+    sprintf(fullpath, "/home/student/ftptest/%s", filename);
+    printf("The file will be stored as %s\n", fullpath);
+
+    // Try to open the file, if file does not exist, create it.
+    if((file = open(fullpath, O_WRONLY | O_CREAT)) == -1)
+    {
+        respond(ftp_pi, 550, "File not writeable.");
+        printf("Transmission failed because of file is inaccessible.\n");
+        close(file);
+        close(data_socket);
+        data_socket = -1;
+        return;
+    }
+    respond(ftp_pi, 150, "Ok to send data.");
+
+    int ret, total_size = 0;
+    if(strcmp(active_mode, "ASCII") == 0){
+        char asc_buff[MAXLINE]; int size;
+        char final = '\0';
+        while((ret = recv(data_socket, buff, MAXLINE - 1, 0)) > 0)
+        {
+            buff[ret] = '\0';
+            // If the buff read end between a '\r' and a '\n', remove that '\r'
+            final = buff[ret - 1];
+            if(final == '\r' && buff[0] == '\n');
+            lseek(file, -1, SEEK_CUR); // Later, the input to file will overwrite the value.
+
+            strrpl(buff, asc_buff, "\r\n", "\n");
+            if(write(file, asc_buff, strlen(asc_buff)) == -1){
+                ret = -1;
+                break;
+            }
+            total_size += ret;
+        }
+    }else{ // Default as binary
+        while((ret = recv(data_socket, buff, MAXLINE, 0)) > 0)
+        {
+            if(write(file, buff, ret) == -1){
+                ret = -1;
+                break;
+            }
+            total_size += ret;
+        }
+    }
+
+    if(ret == -1){
+        respond(ftp_pi, 450, "An exception happened during the transfer");
+        printf("Transfer aborted as exception happened during the transfer.\n");
+        if (remove(fullpath) == 0){
+            printf("Tmp file removed.\n");
+        }
+        close(file);
+        close(data_socket);
+        data_socket = -1;
+        return;
+    }
+    respond(ftp_pi, 226, "Transfer complete.");
+    printf("Transmission complete, %i bytes received in %s mode.\n", total_size, active_mode);
+
+    // Close them while resetting the value.
+    close(file);
+    close(data_socket);
+    data_socket = -1;
+}
+
+// Showing the OS, UNIX
 void do_SYST(){
-    if(respond(ftp_pi, 215, "Remote System is Linux.")) {
+    if(respond(ftp_pi, 215, "UNIX Type: L8")) {
         printf("sending response to pi error: %s(errno: %d)", strerror(errno), errno);
     }
 }
 
-// Switch to different type of transmission. Actually it will not influence the transmission, for now.
+// Switch to different type of transmission.
 void do_TYPE(char* type){
     if(strcmp(type, "I") == 0){
         respond(ftp_pi, 200, "Switching to Binary mode.");
@@ -526,6 +624,18 @@ void trim(char* msg){
         }
         msg++;
     }
+}
+
+// Trim the path to file name, returning the char sequence which is the beginning of file name.
+char* trim_pathname(char* pathname){
+    char *last_dash = pathname;
+    while (*pathname != '\0'){
+        if(*pathname == '/'){
+            last_dash = pathname;
+        }
+        pathname++;
+    }
+    return last_dash + 1;
 }
 
 // Generate permission string
@@ -629,4 +739,20 @@ const char* statbuf_get_date(struct stat *sbuf)
     strftime(datebuf, sizeof(datebuf), p_date_format, p_tm);
 
     return datebuf;
+}
+
+// Replace segment of a string. Beware of memory leek when converting from small segment to a larger one.
+int strrpl(char* str, char* dest, char* from, char* to){
+    int i, off = 0;
+
+    *dest = '\0'; // Reset the string
+    for(i = 0; i < strlen(str); i++){
+        if(!strncmp(str+i, from,strlen(from))){ // compare string
+            off += strcat(dest, to);
+            i += strlen(from) - 1;
+        }else{
+            off += strncat(dest,str + i,1);
+        }
+    }
+    return off;
 }
