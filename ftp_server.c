@@ -480,7 +480,7 @@ void do_QUIT(){
 
 // Retransmission a file from server.
 void do_RETR(char* filename){
-    int file;
+    int file, throughput = 0, start_time;
     char buff[MAXLINE], res[64];
     if (data_socket == -1){ // If connection is off
         respond(ftp_pi, 425, "Transfer aborted.");
@@ -504,26 +504,28 @@ void do_RETR(char* filename){
     printf("Trying to transmit file: %s (%i bytes)\n", filename, size);
     lseek(file, 0, SEEK_SET); // Set to start again for transmission
 
-
-    int ret;
+    start_time = clock();
+    int ret, sent_byte;
     if(strcmp(active_mode, "ASCII") == 0){
         char asc_buff[MAXLINE * 2];
         while((ret = read(file, buff, MAXLINE - 1)) > 0)
         {
             buff[ret] = '\0';
             strrpl(buff, asc_buff, "\n", "\r\n"); // return value is bad
-            if(send(data_socket, asc_buff, strlen(asc_buff), 0) == -1){
+            if((sent_byte = send(data_socket, asc_buff, strlen(asc_buff), 0)) == -1){
                 ret = -1;
                 break;
             }
+            throughput += sent_byte;
         }
     }else{ // Default as binary
         while((ret = read(file, buff, MAXLINE)) > 0)
         {
-            if(send(data_socket, buff, ret, 0) == -1){
+            if((sent_byte = send(data_socket, buff, ret, 0)) == -1){
                 ret = -1;
                 break;
             }
+            throughput += sent_byte;
         }
     }
 
@@ -535,9 +537,13 @@ void do_RETR(char* filename){
         data_socket = -1;
         return;
     }
-    respond(ftp_pi, 226, "Transfer complete.");
-    printf("Transmission complete.\n");
 
+    double time = (clock() - start_time) / 1000.0;
+    double through = throughput / 1024.0;
+    double speed = through / time;
+    printf("Transmission complete in %.2lf seconds. \n"
+           "Total throughput %.2lf kb, speed: %.2lf kb/s\n", time, through, speed);
+    respond(ftp_pi, 226, "Transfer complete.");
     // Close them while resetting the value.
     close(file);
     close(data_socket);
@@ -570,7 +576,8 @@ void do_STOR(char* filename){
     }
     respond(ftp_pi, 150, "Ok to send data.");
 
-    int ret, total_size = 0;
+    int ret, total_size = 0, start_time;
+    start_time = clock();
     if(strcmp(active_mode, "ASCII") == 0){
         char asc_buff[MAXLINE];
         char final = '\0';
@@ -612,7 +619,11 @@ void do_STOR(char* filename){
         return;
     }
     respond(ftp_pi, 226, "Transfer complete.");
-    printf("Transmission complete, %i bytes received in %s mode.\n", total_size, active_mode);
+    double time = (clock() - start_time) / 1000.0;
+    double through = total_size / 1024.0;
+    double speed = through / time;
+    printf("Transmission complete in %.2lf seconds. \n"
+           "Total throughput %.2lf kb, speed: %.2lf kb/s\n", time, through, speed);
 
     // Close them while resetting the value.
     close(file);
