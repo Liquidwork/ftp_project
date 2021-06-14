@@ -25,11 +25,13 @@ static char active_mode[32] = "ASCII";
 
 static int listen_socket, ftp_pi;
 static int passive_listen_socket, data_socket;
+static int sleep_us;
 
-//HELP!
+
 static char oldfilen[256]=""; // Linux pathname must less than 4096 byte, but I assume there is no need to prepare so much memory for it.
 
 void parse_command(char* input, char* command, char* param);
+void do_CDUP();
 void do_CWD(char* path);
 void do_DELE(char* path);
 void do_LIST();
@@ -54,6 +56,7 @@ char* trim_pathname(char* pathname);
 const char* statbuf_get_perms(struct stat *sbuf);
 const char* statbuf_get_date(struct stat *sbuf);
 void strrpl(char* str, char* dest, char* from, char* to);
+void limit_speed();
 
 
 int main(int argc, char** argv){
@@ -61,6 +64,21 @@ int main(int argc, char** argv){
     char buff[MAXLINE];
     char command[16], param[128];
     int n;
+
+    printf("\n---- C language FTP by Dongyu and Zerui ----\n\n");
+
+    /*
+     * Arg parsing
+     */
+
+    if(argc >= 2){
+        int max_speed = atoi(argv[1]); // Max speed param is in kb/s
+        sleep_us = 1000000 / max_speed;
+        printf("Speed limit for uploading and downloading is %d kb/s.\n", max_speed);
+    } else{
+        sleep_us = 0; // Not sleep at all
+        printf("No speed limit set.\n");
+    }
 
     /*
      * TCP listen server part
@@ -141,7 +159,9 @@ int main(int argc, char** argv){
                 do_SYST();
             } else if (flag == 2) { // If login successfully
                 // Try command list.
-                if(strcmp(command, "CWD") == 0) {
+                if(strcmp(command, "CDUP") == 0) {
+                    do_CDUP();
+                } else if (strcmp(command, "CWD") == 0) {
                     do_CWD(param);
                 } else if (strcmp(command, "DELE") == 0) {
                     do_DELE(param);
@@ -218,7 +238,12 @@ void parse_command(char* input, char* command, char* param){
     //printf("Command: <%s>, Param: <%s>\n", command, param);
 }
 
-//Change working directory
+// Change working directory to upper level
+void do_CDUP(){
+    do_CWD("..");
+}
+
+// Change working directory
 void do_CWD(char* path){
     if(chdir(path) == -1){
         if(respond(ftp_pi, 550,"No such directory")){
@@ -227,7 +252,7 @@ void do_CWD(char* path){
     } else{
         char buf[1024];
         getcwd(buf,sizeof(buf));
-        printf("change to  directory: %s\n",buf);
+        printf("Changed to directory: %s\n",buf);
         if(respond(ftp_pi, 257,buf)){
             printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
         }
@@ -352,7 +377,7 @@ int do_PORT(char* ip_and_port){
     char ip[32];
     unsigned int port;
 
-    printf("Active mode on, trying to establish connection\n");
+    printf("Active mode on, trying to establish connection.\n");
 
     // Read the param and parse into clientaddr
     sscanf(ip_and_port, "%u,%u,%u,%u,%u,%u", &ip_seg[0], &ip_seg[1], &ip_seg[2], &ip_seg[3], &port_seg[0], &port_seg[1]);
@@ -401,7 +426,7 @@ int do_PASV(){
     struct sockaddr_in servaddr;
     unsigned int len = sizeof(servaddr);
 
-    printf("Passive mode on\n");
+    printf("Passive mode on.\n");
 
     if((passive_listen_socket = socket(AF_INET, SOCK_STREAM, 0)) == -1 ){
         printf("create socket error: %s(errno: %d)\n",strerror(errno),errno);
@@ -462,7 +487,7 @@ int do_PASV(){
 void do_PWD(){
     char buf[1024];
     getcwd(buf, sizeof(buf));
-    printf("Current working directory change to: %s\n",buf);
+    printf("Active directory sent: %s\n",buf);
     if(respond(ftp_pi, 257, buf)){
         printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
     }
@@ -473,14 +498,13 @@ void do_QUIT(){
     if(respond(ftp_pi, 221, "Goodbye.")){
         printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
     }
-    flag = 0;
-    strcpy(active_user, "");
     printf("FTP client quit.\n");
 }
 
 // Retransmission a file from server.
 void do_RETR(char* filename){
-    int file, throughput = 0, start_time;
+    int file, throughput = 0;
+    long start_time;
     char buff[MAXLINE], res[64];
     if (data_socket == -1){ // If connection is off
         respond(ftp_pi, 425, "Transfer aborted.");
@@ -505,7 +529,7 @@ void do_RETR(char* filename){
     lseek(file, 0, SEEK_SET); // Set to start again for transmission
 
     start_time = clock();
-    int ret, sent_byte;
+    int ret, sent_byte, count = 0;
     if(strcmp(active_mode, "ASCII") == 0){
         char asc_buff[MAXLINE * 2];
         while((ret = read(file, buff, MAXLINE - 1)) > 0)
@@ -517,6 +541,8 @@ void do_RETR(char* filename){
                 break;
             }
             throughput += sent_byte;
+            count++;
+            limit_speed();
         }
     }else{ // Default as binary
         while((ret = read(file, buff, MAXLINE)) > 0)
@@ -526,6 +552,8 @@ void do_RETR(char* filename){
                 break;
             }
             throughput += sent_byte;
+            limit_speed();
+            count++;
         }
     }
 
@@ -538,11 +566,11 @@ void do_RETR(char* filename){
         return;
     }
 
-    double time = (clock() - start_time) / 1000.0;
+    double time = (clock() - start_time + count * sleep_us) / 1000000.0; // Millisecond
     double through = throughput / 1024.0;
     double speed = through / time;
     printf("Transmission complete in %.2lf seconds. \n"
-           "Total throughput %.2lf kb, speed: %.2lf kb/s\n", time, through, speed);
+           "%d bytes sent, speed: %.2lf kb/s.\n", time, throughput, speed);
     respond(ftp_pi, 226, "Transfer complete.");
     // Close them while resetting the value.
     close(file);
@@ -554,6 +582,7 @@ void do_RETR(char* filename){
 // It is a risky operation since unsuccessful transmission will overwrite a existing file before deletion.
 void do_STOR(char* filename){
     int file;
+    long start_time;
     char buff[MAXLINE];
     if (data_socket == -1){ // If connection is off
         respond(ftp_pi, 425, "Transfer aborted.");
@@ -576,7 +605,7 @@ void do_STOR(char* filename){
     }
     respond(ftp_pi, 150, "Ok to send data.");
 
-    int ret, total_size = 0, start_time;
+    int ret, throughput = 0, count = 0;
     start_time = clock();
     if(strcmp(active_mode, "ASCII") == 0){
         char asc_buff[MAXLINE];
@@ -594,7 +623,9 @@ void do_STOR(char* filename){
                 ret = -1;
                 break;
             }
-            total_size += ret;
+            throughput += ret;
+            limit_speed();
+            count++;
         }
     }else{ // Default as binary
         while((ret = recv(data_socket, buff, MAXLINE, 0)) > 0)
@@ -603,7 +634,9 @@ void do_STOR(char* filename){
                 ret = -1;
                 break;
             }
-            total_size += ret;
+            throughput += ret;
+            limit_speed();
+            count++;
         }
     }
 
@@ -619,11 +652,11 @@ void do_STOR(char* filename){
         return;
     }
     respond(ftp_pi, 226, "Transfer complete.");
-    double time = (clock() - start_time) / 1000.0;
-    double through = total_size / 1024.0;
+    double time = (clock() - start_time + count * sleep_us) / 1000000.0; // Millisecond
+    double through = throughput / 1024.0;
     double speed = through / time;
     printf("Transmission complete in %.2lf seconds. \n"
-           "Total throughput %.2lf kb, speed: %.2lf kb/s\n", time, through, speed);
+           "%d bytes received, speed: %.2lf kb/s.\n", time, throughput, speed);
 
     // Close them while resetting the value.
     close(file);
@@ -634,7 +667,7 @@ void do_STOR(char* filename){
 
 
 void do_RNFR(char* path){
-    printf("ready to rename : %s\n", path);
+    printf("Ready to rename : %s\n", path);
     strcpy(oldfilen, path);
     if(access(path, W_OK)==0){
         if(respond(ftp_pi, 350,"Ready for RNTO.")){
@@ -648,7 +681,7 @@ void do_RNFR(char* path){
 }
 
 void do_RNTO(char* path){
-    printf("from %s to %s\n", oldfilen, path);
+    printf("Trying to rename %s to %s\n", oldfilen, path);
     if (rename(oldfilen, path)==0){
         printf("%s rename to: %s\n",oldfilen, path);
         if(respond(ftp_pi, 250,"Rename successful.")){
@@ -766,6 +799,7 @@ const char* statbuf_get_perms(struct stat *sbuf)
     static char perms[] = "----------";
     perms[0] = '?';
 
+    strcpy(perms, "----------"); // Reset it.
     mode_t mode = sbuf->st_mode;
     switch (mode & S_IFMT)
     {
@@ -875,5 +909,11 @@ void strrpl(char* str, char* dest, char* from, char* to){
         }else{
             strncat(dest,str + i,1);
         }
+    }
+}
+
+void limit_speed(){
+    if(sleep_us > 0){
+        usleep(sleep_us);
     }
 }
