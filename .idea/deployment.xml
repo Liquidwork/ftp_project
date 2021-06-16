@@ -1,23 +1,23 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="PublishConfigData" serverName="Remote Host (68c1bb83-9904-443f-bbfb-04b8ca366c60)" remoteFilesAllowedToDisappearOnAutoupload="false">
+  <component name="PublishConfigData" serverName="ftp04" remoteFilesAllowedToDisappearOnAutoupload="false">
     <serverData>
-      <paths name="Remote Host (8455f5ad-9ea7-4347-a1a2-0e354682bca5)">
+      <paths name="Remote Host (871eacb0-07e1-45b0-b325-8032fe7f9eaf)">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/tmp/tmp.ajNHeEDY1Z" local="$PROJECT_DIR$" />
+          </mappings>
+          <excludedPaths>
+            <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-remote-debug" />
+            <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-release" />
+          </excludedPaths>
+        </serverdata>
+      </paths>
+      <paths name="ftp04">
         <serverdata>
           <mappings>
             <mapping local="$PROJECT_DIR$" web="/" />
           </mappings>
-        </serverdata>
-      </paths>
-      <paths name="Remote Host (d4b46689-ca1f-451c-8151-0ff63c1e59fe)">
-        <serverdata>
-          <mappings>
-            <mapping deploy="/tmp/tmp.QUcM0u4TPQ" local="$PROJECT_DIR$" />
-          </mappings>
-          <excludedPaths>
-            <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-remote-debug" />
-            <excludedPath local="true" path="$PROJECT_DIR$/home/student/ftpb" />
-          </excludedPaths>
         </serverdata>
       </paths>
     </serverData>

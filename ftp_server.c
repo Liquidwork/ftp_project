@@ -16,9 +16,10 @@
 
 #define MAXLINE 1024
 
-static char NAME[32] = "student";
-static char OTHER[32] = "student2";
+static char student_name[32] = "student";
+static char ADMIN[32] = "admin";
 static char PASSWORD[32] = "111111";
+static char PASSWORD2[32] = "123456";
 static int flag = 0; // 0 for not log in yet, 1 for user input, 2 for logged in
 
 static char active_user[32] = "UNAUTHORIZED";
@@ -359,7 +360,13 @@ void do_MKD(char* path){
 
 // Response to PASS, used to check password after username check
 int do_PASS(char* password){
-    if(!strcmp(PASSWORD, password) && flag!=0){
+    if(!strcmp(active_user, ADMIN) && !strcmp(password, PASSWORD2)){
+        if(respond(ftp_pi, 230, "User logged in, proceed.")){
+            printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
+        }
+        printf("Login success! Active user: %s\n", active_user);
+        flag = 2;
+    } else if(!strcmp(active_user, student_name) && !strcmp(password, PASSWORD)){
         if(respond(ftp_pi, 230, "User logged in, proceed.")){
             printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
         }
@@ -369,7 +376,7 @@ int do_PASS(char* password){
         if(respond(ftp_pi, 530, "Not logged in.")){
             printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
         }
-        printf("Password invalid\n");
+        printf("Password or user invalid.\n");
         strcpy(active_user, "UNAUTHORIZED");
         flag = 0;
     }
@@ -729,12 +736,12 @@ void do_TYPE(char* type){
 
 // Used to check username before any activities
 int do_USER(char* name){
-    if(!strcmp(NAME,name)){
+    if(!strcmp(student_name, name)){
         flag = 1;
-        strcpy(active_user, NAME);
-    }else if (!strcmp(OTHER, name)){
+        strcpy(active_user, student_name);
+    }else if (!strcmp(ADMIN, name)){
         flag =1;
-        strcpy(active_user, "OTHERS");
+        strcpy(active_user, ADMIN);
     }else{
         flag = 0;
         strcpy(active_user, "UNAUTHORIZED");
@@ -928,13 +935,15 @@ void limit_speed(){
     }
 }
 
-//1 for no access permission, 0 for permission
+// 1 for no access permission, 0 for permission
 int permitted(){
-    if(strcmp(active_user, NAME)!=0){
+    if(strcmp(active_user, ADMIN) != 0){
         if(respond(ftp_pi, 550, "Don't have access.")){
             printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
         }
-        printf("Don't have access");
+        close(data_socket);
+        data_socket = -1;
+        printf("Don't have access, the data connection has been closed.\n");
         return 0;
     } else return 1;
 }

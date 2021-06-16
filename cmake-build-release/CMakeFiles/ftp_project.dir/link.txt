@@ -1,0 +1,1 @@
+/usr/bin/cc  -O3 -DNDEBUG    CMakeFiles/ftp_project.dir/ftp_server.c.o  -o ftp_project -rdynamic 
