@@ -189,6 +189,13 @@ int main(int argc, char** argv){
                 } else if (strcmp(command, "STOR") == 0) {
                     if(permitted()){
                         do_STOR(param);
+                    }else{
+                        if(respond(ftp_pi, 550, "Don't have access.")){
+                            printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
+                        }
+                        close(data_socket);
+                        data_socket = -1;
+                        printf("Don't have access, the data connection has been closed.\n");
                     }
                 } else {
                     if (respond(ftp_pi, 503, "Unsupported command.")) {
@@ -938,12 +945,6 @@ void limit_speed(){
 // 1 for no access permission, 0 for permission
 int permitted(){
     if(strcmp(active_user, ADMIN) != 0){
-        if(respond(ftp_pi, 550, "Don't have access.")){
-            printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
-        }
-        close(data_socket);
-        data_socket = -1;
-        printf("Don't have access, the data connection has been closed.\n");
         return 0;
     } else return 1;
 }
