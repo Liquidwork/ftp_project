@@ -16,10 +16,12 @@
 
 #define MAXLINE 1024
 
-static char student_name[32] = "student";
+// Users. Student can not upload any file but can download.
+// Permission for mkdir, del, rename is also not limited.
+static char STUDENT[32] = "student";
 static char ADMIN[32] = "admin";
-static char PASSWORD[32] = "111111";
-static char PASSWORD2[32] = "123456";
+static char STUDENT_PASSWORD[32] = "111111";
+static char ADMIN_PASSWORD[32] = "123456";
 static int flag = 0; // 0 for not log in yet, 1 for user input, 2 for logged in
 
 static char active_user[32] = "UNAUTHORIZED";
@@ -59,7 +61,7 @@ const char* statbuf_get_perms(struct stat *sbuf);
 const char* statbuf_get_date(struct stat *sbuf);
 void strrpl(char* str, char* dest, char* from, char* to);
 void limit_speed();
-int permitted();
+int check_permission();
 
 
 int main(int argc, char** argv){
@@ -107,7 +109,7 @@ int main(int argc, char** argv){
         return -1;
     }
 
-    printf("Server listening on port 21\n");
+    printf("Server listening on port 21.\n");
 
     /*
      * TCP accept and command processing part
@@ -167,11 +169,15 @@ int main(int argc, char** argv){
                 } else if (strcmp(command, "CWD") == 0) {
                     do_CWD(param);
                 } else if (strcmp(command, "DELE") == 0) {
-                    do_DELE(param);
+                    if(check_permission()){
+                        do_DELE(param);
+                    }
                 } else if (strcmp(command, "LIST") == 0) {
                     do_LIST();
                 } else if (strcmp(command, "MKD") == 0) {
-                    do_MKD(param);
+                    if(check_permission()){
+                        do_MKD(param);
+                    }
                 } else if (strcmp(command, "PASV") == 0) {
                     do_PASV();
                 } else if (strcmp(command, "PORT") == 0) {
@@ -179,23 +185,24 @@ int main(int argc, char** argv){
                 } else if (strcmp(command, "PWD") == 0 ||strcmp(command, "PWDT") == 0) {
                     do_PWD();
                 } else if (strcmp(command, "RNFR") == 0) {
-                    do_RNFR(param);
+                    if(check_permission()){
+                        do_RNFR(param);
+                    }
                 } else if (strcmp(command, "RNTO") == 0) {
-                    do_RNTO(param);
+                    if(check_permission()){
+                        do_RNTO(param);
+                    }
                 }else if (strcmp(command, "TYPE") == 0) {
                     do_TYPE(param);
                 } else if (strcmp(command, "RETR") == 0) {
                     do_RETR(param);
                 } else if (strcmp(command, "STOR") == 0) {
-                    if(permitted()){
+                    if(check_permission()){
                         do_STOR(param);
                     }else{
-                        if(respond(ftp_pi, 550, "Don't have access.")){
-                            printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
-                        }
                         close(data_socket);
                         data_socket = -1;
-                        printf("Don't have access, the data connection has been closed.\n");
+                        printf("The data connection has been closed.\n");
                     }
                 } else {
                     if (respond(ftp_pi, 503, "Unsupported command.")) {
@@ -257,6 +264,7 @@ void do_CDUP(){
 
 // Change working directory
 void do_CWD(char* path){
+    if(!strcmp(path, "~")) strcpy(path, "/home/student/");
     if(chdir(path) == -1){
         if(respond(ftp_pi, 550,"No such directory")){
             printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
@@ -276,13 +284,13 @@ void do_CWD(char* path){
 //delete a file or directory
 void do_DELE(char* path){
     int isRemove = remove(path);
-    if( isRemove==0 ) {
-        printf("delete :%s\n", path);
+    if( isRemove == 0) {
+        printf("Delete: %s\n", path);
         if (respond(ftp_pi, 250, "Delete success.")) {
             printf("sending respond to pi error: %s(errno: %d)\n", strerror(errno), errno);
         }
     }else {
-        printf("delete failed!");
+        printf("Delete failed!");
         if (respond(ftp_pi, 450, "Can't delete file or directory, may not existed.")) {
             printf("sending respond to pi error: %s(errno: %d)\n", strerror(errno), errno);
         }
@@ -367,13 +375,13 @@ void do_MKD(char* path){
 
 // Response to PASS, used to check password after username check
 int do_PASS(char* password){
-    if(!strcmp(active_user, ADMIN) && !strcmp(password, PASSWORD2)){
+    if(!strcmp(active_user, ADMIN) && !strcmp(password, ADMIN_PASSWORD)){
         if(respond(ftp_pi, 230, "User logged in, proceed.")){
             printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
         }
         printf("Login success! Active user: %s\n", active_user);
         flag = 2;
-    } else if(!strcmp(active_user, student_name) && !strcmp(password, PASSWORD)){
+    } else if(!strcmp(active_user, STUDENT) && !strcmp(password, STUDENT_PASSWORD)){
         if(respond(ftp_pi, 230, "User logged in, proceed.")){
             printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
         }
@@ -383,7 +391,7 @@ int do_PASS(char* password){
         if(respond(ftp_pi, 530, "Not logged in.")){
             printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
         }
-        printf("Password or user invalid.\n");
+        printf("Password or username invalid.\n");
         strcpy(active_user, "UNAUTHORIZED");
         flag = 0;
     }
@@ -743,9 +751,9 @@ void do_TYPE(char* type){
 
 // Used to check username before any activities
 int do_USER(char* name){
-    if(!strcmp(student_name, name)){
+    if(!strcmp(STUDENT, name)){
         flag = 1;
-        strcpy(active_user, student_name);
+        strcpy(active_user, STUDENT);
     }else if (!strcmp(ADMIN, name)){
         flag =1;
         strcpy(active_user, ADMIN);
@@ -943,8 +951,12 @@ void limit_speed(){
 }
 
 // 1 for no access permission, 0 for permission
-int permitted(){
+int check_permission(){
     if(strcmp(active_user, ADMIN) != 0){
+        if(respond(ftp_pi, 550, "Permission denied.")){
+            printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
+        }
+        printf("Permission denied.\n");
         return 0;
     } else return 1;
 }
