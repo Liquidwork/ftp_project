@@ -624,7 +624,7 @@ void do_STOR(char* filename){
     printf("The file will be stored as %s\n", filename);
 
     // Try to open the file, if file does not exist, create it.
-    if((file = open(filename, O_WRONLY | O_CREAT)) == -1)
+    if((file = open(filename, O_WRONLY | O_CREAT, 774)) == -1)
     {
         respond(ftp_pi, 550, "File not writeable.");
         printf("Transmission failed because of file is inaccessible.\n");
