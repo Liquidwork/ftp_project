@@ -2,13 +2,21 @@
 <project version="4">
   <component name="PublishConfigData" serverName="Remote Host (68c1bb83-9904-443f-bbfb-04b8ca366c60)" remoteFilesAllowedToDisappearOnAutoupload="false">
     <serverData>
-      <paths name="Remote Host (68c1bb83-9904-443f-bbfb-04b8ca366c60)">
+      <paths name="Remote Host (8455f5ad-9ea7-4347-a1a2-0e354682bca5)">
         <serverdata>
           <mappings>
-            <mapping deploy="/home/student/C/clion_ftp" local="$PROJECT_DIR$" />
+            <mapping local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="Remote Host (d4b46689-ca1f-451c-8151-0ff63c1e59fe)">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/tmp/tmp.QUcM0u4TPQ" local="$PROJECT_DIR$" />
           </mappings>
           <excludedPaths>
-            <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-debug" />
+            <excludedPath local="true" path="$PROJECT_DIR$/cmake-build-remote-debug" />
+            <excludedPath local="true" path="$PROJECT_DIR$/home/student/ftpb" />
           </excludedPaths>
         </serverdata>
       </paths>

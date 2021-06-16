@@ -17,6 +17,7 @@
 #define MAXLINE 1024
 
 static char NAME[32] = "student";
+static char OTHER[32] = "student2";
 static char PASSWORD[32] = "111111";
 static int flag = 0; // 0 for not log in yet, 1 for user input, 2 for logged in
 
@@ -57,6 +58,7 @@ const char* statbuf_get_perms(struct stat *sbuf);
 const char* statbuf_get_date(struct stat *sbuf);
 void strrpl(char* str, char* dest, char* from, char* to);
 void limit_speed();
+int permitted();
 
 
 int main(int argc, char** argv){
@@ -184,7 +186,9 @@ int main(int argc, char** argv){
                 } else if (strcmp(command, "RETR") == 0) {
                     do_RETR(param);
                 } else if (strcmp(command, "STOR") == 0) {
-                    do_STOR(param);
+                    if(permitted()){
+                        do_STOR(param);
+                    }
                 } else {
                     if (respond(ftp_pi, 503, "Unsupported command.")) {
                         printf("sending respond to pi error: %s(errno: %d)\n", strerror(errno), errno);
@@ -251,9 +255,11 @@ void do_CWD(char* path){
         }
     } else{
         char buf[1024];
-        getcwd(buf,sizeof(buf));
-        printf("Changed to directory: %s\n",buf);
-        if(respond(ftp_pi, 257,buf)){
+        char msg[2048] = "Change to directory: ";
+        getcwd(buf, sizeof(buf));
+        strcat(msg, buf);
+        printf(msg);
+        if(respond(ftp_pi, 257,msg)){
             printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
         }
     }
@@ -339,7 +345,7 @@ void do_LIST(){
 void do_MKD(char* path){
     int isCreate = mkdir(path,775);
     if( isCreate==0 ) {
-        printf("create path:%s\n", path);
+        printf("create path: %s\n", path);
         if (respond(ftp_pi, 250, path)) {
             printf("sending respond to pi error: %s(errno: %d)\n", strerror(errno), errno);
         }
@@ -353,7 +359,7 @@ void do_MKD(char* path){
 
 // Response to PASS, used to check password after username check
 int do_PASS(char* password){
-    if(!strcmp(PASSWORD, password)){
+    if(!strcmp(PASSWORD, password) && flag!=0){
         if(respond(ftp_pi, 230, "User logged in, proceed.")){
             printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
         }
@@ -486,9 +492,11 @@ int do_PASV(){
 // Display current working directory
 void do_PWD(){
     char buf[1024];
+    char msg[2048] = "Current directory is: ";
     getcwd(buf, sizeof(buf));
-    printf("Active directory sent: %s\n",buf);
-    if(respond(ftp_pi, 257, buf)){
+    strcat(msg, buf);
+    printf(msg);
+    if(respond(ftp_pi, 257, msg)){
         printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
     }
 }
@@ -722,18 +730,20 @@ void do_TYPE(char* type){
 // Used to check username before any activities
 int do_USER(char* name){
     if(!strcmp(NAME,name)){
-        if(respond(ftp_pi, 331, "User name okay, need password.")){
-            printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
-        }
-        printf("Username checked\n");
+        flag = 1;
         strcpy(active_user, NAME);
+    }else if (!strcmp(OTHER, name)){
         flag =1;
+        strcpy(active_user, "OTHERS");
     }else{
-        if(respond(ftp_pi, 332, "Need valid account for login.")){
-            printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
-        }
-        printf("Username invalid\n");
+        flag = 0;
+        strcpy(active_user, "UNAUTHORIZED");
     }
+    if(respond(ftp_pi, 331, "User name okay, need password.")){
+        printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
+    }
+    printf("Username checked\n");
+
     return flag;
 }
 
@@ -916,4 +926,15 @@ void limit_speed(){
     if(sleep_us > 0){
         usleep(sleep_us);
     }
+}
+
+//1 for no access permission, 0 for permission
+int permitted(){
+    if(strcmp(active_user, NAME)!=0){
+        if(respond(ftp_pi, 550, "Don't have access.")){
+            printf("sending respond to pi error: %s(errno: %d)\n",strerror(errno),errno);
+        }
+        printf("Don't have access");
+        return 0;
+    } else return 1;
 }
