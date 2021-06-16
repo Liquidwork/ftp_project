@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="WebServers">
+    <option name="servers">
+      <webServer id="2dd8cee3-7229-48a0-9fa7-4d204a4e0dee" name="ftp04" url="http://127.0.0.1">
+        <fileTransfer rootFolder="/home/student/FTP01" accessType="SFTP" host="127.0.0.1" port="2000" sshConfigId="84a2d027-75a3-4d56-8d25-9c170480071b" sshConfig="student@127.0.0.1:2000 password">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
+        </fileTransfer>
+      </webServer>
+    </option>
+  </component>
+</project>
