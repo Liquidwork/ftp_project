@@ -1,7 +1,7 @@
 # ftp_project
 
 Basic self-made C-based ftp server. <br>
-This is a course project of *Internet Applications*. The project is focusing on finishing
+This is a course project of *Internet Applications (BUPT 2021)*. The project is focusing on finishing
 the requirement, so only several core functions are covered.
 
 ## Features:
@@ -18,12 +18,15 @@ the requirement, so only several core functions are covered.
 
 This project is based on linux socket programming. There is no need to install any moudule before 
 running, just compile and run by using following code:<br>
+
 > gcc -o ftp_server ftp_server.c <br>
 > sudo ./ftp_server <*speed_limit*> <br>
+
 Speed limit can be any positive integer that will limit both upload and download speed to 
 *speed_limit* kb/s.
 
 ## Can I modify/fix the project?
 
-Of course! Any commit are welcomed, you can always submit a pull request! <br>
-We welcome you to add new functions and modify existing functions.
+Of course! Any relative commit are welcomed, you can always submit a pull request! The project
+has a lot to improve. We also welcome *BUPT* student refer our project to finish your own coursework. <br>
+Feel free to add any new function and modify existing functions. Adding new commands maybe is a good start. <br>
