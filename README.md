@@ -14,7 +14,7 @@ the requirement, so only several core functions are covered.
 * Limit download speed and upload speed
 * Admin user can upload, mkdir, dele, rename while common users cannot
 
-## How to Use This Project
+## How to use this project
 
 This project is based on linux socket programming. There is no need to install any moudule before 
 running, just compile and run by using following code:<br>
@@ -25,8 +25,9 @@ running, just compile and run by using following code:<br>
 Speed limit can be any positive integer that will limit both upload and download speed to 
 *speed_limit* kb/s.
 
-## Can I modify/fix the project?
+## Can I modify/fix/use the project?
 
-Of course! Any relative commit are welcomed, you can always submit a pull request! The project
+Of course! I have always believed that free sharing is the purpose of the Internet. <br>
+Any relative commit are welcomed, you can always submit a pull request! The project
 has a lot to improve. We also welcome *BUPT* student refer our project to finish your own coursework. <br>
 Feel free to add any new function and modify existing functions. Adding new commands maybe is a good start. <br>
